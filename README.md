@@ -22,7 +22,7 @@ production and fully-featured.
 
 ## How to find out more
 
-* `CONCEPT.md` motivates and describes the 'concept' phase of the project.
-* `PRODUCT.md` motivates and describes the 'product' phase of the project.
+* [`CONCEPT.md`](https://github.com/mlabs-haskell/grumplestiltskin/blob/master/CONCEPT.md) motivates and describes the 'concept' phase of the project.
+* [`PRODUCT.md`](https://github.com/mlabs-haskell/grumplestiltskin/blob/master/PRODUCT.md) motivates and describes the 'product' phase of the project.
 
 [ytxp]: https://www.mlabs.city/blog/an-introduction-to-the-concepts-behind-ytxp-architecture 
