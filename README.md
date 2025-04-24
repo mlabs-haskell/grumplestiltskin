@@ -24,5 +24,8 @@ production and fully-featured.
 
 * [`CONCEPT.md`](https://github.com/mlabs-haskell/grumplestiltskin/blob/master/CONCEPT.md) motivates and describes the 'concept' phase of the project.
 * [`PRODUCT.md`](https://github.com/mlabs-haskell/grumplestiltskin/blob/master/PRODUCT.md) motivates and describes the 'product' phase of the project.
+* [`TASKS.md`](https://github.com/mlabs-haskell/grumplestiltskin/blob/master/TASKS.md)
+  describes precise tasks needed to complete both phases, as well as their
+  dependencies.
 
 [ytxp]: https://www.mlabs.city/blog/an-introduction-to-the-concepts-behind-ytxp-architecture 
