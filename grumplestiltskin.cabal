@@ -1,0 +1,54 @@
+cabal-version:      3.0
+name:               grumplestiltskin
+version:            1.0.0
+author:             Koz Ross <koz@mlabs.city>
+license:            Apache-2.0
+extra-source-files: README.md
+tested-with:        GHC ==9.6.6
+
+common lang
+  ghc-options:
+    -Wall -Wcompat -Wredundant-bang-patterns
+    -Wredundant-strictness-flags -Wmissing-deriving-strategies
+    -Woperator-whitespace -Wambiguous-fields -Wmisplaced-pragmas
+    -Wmissing-export-lists -Wmissing-import-lists
+
+  default-extensions:
+    BangPatterns
+    BinaryLiterals
+    DataKinds
+    DeriveTraversable
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    GeneralizedNewtypeDeriving
+    HexFloatLiterals
+    ImportQualifiedPost
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    NoFieldSelectors
+    NoStarIsType
+    NumericUnderscores
+    OverloadedLabels
+    OverloadedStrings
+    PackageImports
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeOperators
+    UndecidableInstances
+
+  default-language:   Haskell2010
+  build-depends:      base >=4.9 && <5
+
+library
+  import:          lang
+  exposed-modules: Grumplestiltskin.Galois
+  build-depends:   plutarch ==1.10.1
+  hs-source-dirs:  src

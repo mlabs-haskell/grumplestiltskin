@@ -106,7 +106,7 @@ and memory use.
 
 Using the benchmarks produced as part of Milestone 2, we will attempt to improve
 the performance of existing Grumplestiltskin functionality, as well as the new
-functionality in Milestone 1. This will attempt to reduce both meory cost and
+functionality in Milestone 1. This will attempt to reduce both memory cost and
 execution unit cost. Ideally, any improvements will be as general as possible,
 but the focus will be to optimize operations for the three curves from Milestone
 2, as well as the Galois fields they use.

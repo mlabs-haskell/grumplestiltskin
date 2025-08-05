@@ -144,7 +144,7 @@ reference implementation using the BLS12-381 primitives provided by Plutus Core.
 ## Milestone 5: Plutarch YTxP wrapper
 
 We will provide a [YTxP][ytxp]-using wrapper, implemented in Plutarch. It will
-allow easy and convient use of the core script implemented in Milestone 3. This 
+allow easy and convenient use of the core script implemented in Milestone 3. This 
 wrapper will focus on convenience and ease of use, while also allowing
 improvements in functionality, bugfixes and security fixes with minimum user
 inconvenience. This wrapper will be published as an open-source project.
