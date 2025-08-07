@@ -52,6 +52,7 @@ library
   exposed-modules: Grumplestiltskin.Galois
   build-depends:
     , generics-sop
-    , plutarch      ==1.10.1
+    , plutarch          ==1.10.1
+    , plutarch-testlib
 
   hs-source-dirs:  src
