@@ -38,6 +38,7 @@ import Plutarch.Prelude (
     PMultiplicativeMonoid (pone),
     PMultiplicativeSemigroup ((#*)),
     PNatural,
+    POrd,
     PlutusType,
     S,
     Term,
@@ -129,6 +130,9 @@ newtype PGFElement (s :: S) = PGFElement (Term s PInteger)
 
 -- | @since 1.0.0
 instance PEq PGFElement
+
+-- | @since 1.0.0
+instance POrd PGFElement
 
 {- | Compute the reciprocal of a finite field element, given an order. The
 function assumes the 'PNatural' is prime, and may fail otherwise.
