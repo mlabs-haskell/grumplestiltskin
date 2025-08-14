@@ -17,6 +17,13 @@ repository plutarch-packages
     af39b444bdf664096ee5fc4bd89319b0f027346828567837954ce16a16cde2fc
     e02083ae6794b540ea648606c4a42b467d7e761c6c727bb71fb0e5caa335b36c
 
+source-repository-package
+  type: git
+  location: https://github.com/Plutonomicon/plutarch-plutus
+  tag: 75c06ef1e77742916574414975f76ddac59cce4a
+  --sha256: 0wj9g782vcxr2a3zj3cshdx317wfhjg77hzj2jmp8b17yddqpy2d
+  subdir: plutarch-testlib
+
 index-state: 2024-10-09T22:38:57Z
 
 packages: grumplestiltskin.cabal
