@@ -6,10 +6,11 @@ import Grumplestiltskin.Galois (
     PGFElement,
     pgfExp,
     pgfFromElem,
-    pgfFromInteger,
     pgfFromPInteger,
+    pgfOne,
     pgfRecip,
     pgfToElem,
+    pgfZero,
  )
 import Numeric.Natural (Natural)
 import Plutarch.Prelude (
@@ -56,9 +57,11 @@ main = do
             "PGFIntermediate"
             [ testProperty "#+ commutes" propCommAdd
             , testProperty "#+ associates" propAssocAdd
+            , testProperty "zero element is an identity for #+" propZeroAdd
             , testProperty "pnegate produces an additive inverse" propNegate
             , testProperty "#* commutes" propCommMul
             , testProperty "#* associates" propAssocMul
+            , testProperty "one element is an identity for #*" propOneMul
             , testProperty "pgfRecip produces a reciprocal" propRecip
             , testProperty "distributivity of #+ over #*" propDistribute
             , testProperty "pgfExp equivalent to ppowPositive" propExpPos
@@ -96,6 +99,15 @@ propAssocAdd = forAll arbitrary $ \(x, y, z) ->
         let lhs = pgfFromElem t1 #+ (pgfFromElem t2 #+ pgfFromElem t3)
             rhs = (pgfFromElem t1 #+ pgfFromElem t2) #+ pgfFromElem t3
          in pgfToElem lhs pbase #== pgfToElem rhs pbase
+
+propZeroAdd :: Property
+propZeroAdd = forAll arbitrary $ \x ->
+    plift (precompileTerm (plam go) # pconstant x)
+  where
+    go :: forall (s :: S). Term s PGFElement -> Term s PBool
+    go t =
+        let lhs = pgfFromElem t #+ pgfFromElem pgfZero
+         in pgfToElem lhs pbase #== t
 
 propNegate :: Property
 propNegate = forAll arbitrary $ \x ->
@@ -135,6 +147,15 @@ propAssocMul = forAll arbitrary $ \(x, y, z) ->
         let lhs = pgfFromElem t1 #* (pgfFromElem t2 #* pgfFromElem t3)
             rhs = (pgfFromElem t1 #* pgfFromElem t2) #* pgfFromElem t3
          in pgfToElem lhs pbase #== pgfToElem rhs pbase
+
+propOneMul :: Property
+propOneMul = forAll arbitrary $ \x ->
+    plift (precompileTerm (plam go) # pconstant x)
+  where
+    go :: forall (s :: S). Term s PGFElement -> Term s PBool
+    go t =
+        let lhs = pgfFromElem t #* pgfFromElem pgfOne
+         in pgfToElem lhs pbase #== t
 
 -- Note (Koz, 14/08/2025): To ensure that we don't accidentally generate
 -- nonsensical values for reciprocals, we generate a Natural in a given range,
@@ -227,9 +248,3 @@ propExpRing = forAllShrink gen shr $ \(n, i) ->
 
 pbase :: forall (s :: S). Term s PNatural
 pbase = ptryNatural # 97
-
-pgfZero :: forall (s :: S). Term s PGFElement
-pgfZero = pgfFromInteger 0 97
-
-pgfOne :: forall (s :: S). Term s PGFElement
-pgfOne = pgfFromInteger 1 97

@@ -18,6 +18,8 @@ module Grumplestiltskin.Galois (
     integerToGFElement,
     pgfFromPInteger,
     pgfFromInteger,
+    pgfZero,
+    pgfOne,
 
     -- ** Operations
     pgfRecip,
@@ -267,3 +269,19 @@ require it.
 -}
 pgfFromInteger :: forall (s :: S). Integer -> Natural -> Term s PGFElement
 pgfFromInteger i n = pcon . PGFElement . pconstant $ i `mod` fromIntegral n
+
+{- | The zero element (the additive identity), which exists in every Galois
+field.
+
+@since 1.0.0
+-}
+pgfZero :: forall (s :: S). Term s PGFElement
+pgfZero = pconstant . GFElement $ 0
+
+{- | The one element (the multiplicative identity), which exists in every Galois
+field.
+
+@since 1.0.0
+-}
+pgfOne :: forall (s :: S). Term s PGFElement
+pgfOne = pconstant . GFElement $ 1
