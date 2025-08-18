@@ -4,14 +4,22 @@
 -- | @since 1.0.0
 module Grumplestiltskin.Galois (
     -- * Types
+
+    -- ** Haskell
+    GFElement,
+
+    -- ** Plutarch
     PGFElement,
     PGFIntermediate,
 
     -- * Functions
 
     -- ** Element introduction
+    integerToGFElement,
     pgfFromPInteger,
     pgfFromInteger,
+    pgfZero,
+    pgfOne,
 
     -- ** Operations
     pgfRecip,
@@ -24,10 +32,17 @@ module Grumplestiltskin.Galois (
     pgfToElem,
 ) where
 
+import Control.Monad (guard)
+import Data.Coerce (coerce)
 import GHC.Generics (Generic)
 import Generics.SOP qualified as SOP
 import Numeric.Natural (Natural)
 import Plutarch.Builtin.Integer (pexpModInteger)
+import Plutarch.Internal.Lift (
+    LiftError (OtherLiftError),
+    getPLifted,
+    mkPLifted,
+ )
 import Plutarch.Prelude (
     DeriveNewtypePlutusType (DeriveNewtypePlutusType),
     PAdditiveGroup (pnegate, pscaleInteger, (#-)),
@@ -35,6 +50,15 @@ import Plutarch.Prelude (
     PAdditiveSemigroup (pscalePositive),
     PEq,
     PInteger,
+    PLiftable (
+        AsHaskell,
+        PlutusRepr,
+        haskToRepr,
+        plutToRepr,
+        reprToHask,
+        reprToPlut
+    ),
+    PLifted,
     PMultiplicativeMonoid (pone),
     PMultiplicativeSemigroup ((#*)),
     PNatural,
@@ -52,6 +76,10 @@ import Plutarch.Prelude (
     (:-->),
  )
 import Plutarch.Unsafe (punsafeCoerce)
+import Test.QuickCheck (
+    Arbitrary (arbitrary, shrink),
+    chooseInt,
+ )
 
 {- | An intermediate computation over some finite field. This type exists for
 efficiency: thus, you want to do all your calculations in 'PGFIntermediate',
@@ -108,6 +136,47 @@ inefficient. Use 'pgfExp' instead.
 instance PMultiplicativeMonoid PGFIntermediate where
     pone = pcon . PGFIntermediate $ pone
 
+-- | @since 1.0.0
+newtype GFElement = GFElement Integer
+    deriving
+        ( -- | @since 1.0.0
+          Eq
+        , -- | @since 1.0.0
+          Ord
+        )
+        via Integer
+    deriving stock
+        ( -- | @since 1.0.0
+          Show
+        )
+
+{- | This generates elements of the field @GF(97)@. While a somewhat arbitrary
+choice, this value is both prime, and within the default QuickCheck size of
+100, hence the choice.
+
+@since 1.0.0
+-}
+instance Arbitrary GFElement where
+    arbitrary = GFElement . fromIntegral <$> chooseInt (0, 96)
+    shrink (GFElement i) =
+        GFElement <$> do
+            i' <- shrink i
+            guard (i' >= 0)
+            pure i'
+
+{- | Smart constructor for `GFElement`: given a value and a modulus, construct
+the 'GFElement' representing that value in the field of order equal to the
+modulus. The modulus should be prime, but this is not checked.
+
+= Note
+
+If given a zero modulus, this will error.
+
+@since 1.0.0
+-}
+integerToGFElement :: Integer -> Natural -> GFElement
+integerToGFElement i b = GFElement $ i `mod` fromIntegral b
+
 {- | An element in some Galois field. The order of the field in question is
 implicit for reasons of efficiency.
 
@@ -134,8 +203,31 @@ instance PEq PGFElement
 -- | @since 1.0.0
 instance POrd PGFElement
 
+-- | @since 1.0.0
+instance PLiftable PGFElement where
+    type AsHaskell PGFElement = GFElement
+    type PlutusRepr PGFElement = Integer
+    haskToRepr = coerce
+    reprToHask i =
+        if i < 0
+            then Left . OtherLiftError $ "Negative Integer is not a valid GFElement"
+            else Right . GFElement $ i
+    reprToPlut = mkPLifted . pcon . PGFElement . pconstant
+    plutToRepr t = case plutToRepr (go . getPLifted $ t) of
+        Left err -> Left err
+        Right res ->
+            if res < 0
+                then Left . OtherLiftError $ "Negative Integer is not a valid GFElement"
+                else Right res
+      where
+        go :: forall (s :: S). Term s PGFElement -> PLifted s PInteger
+        go = mkPLifted . pupcast
+
 {- | Compute the reciprocal of a finite field element, given an order. The
 function assumes the 'PNatural' is prime, and may fail otherwise.
+
+Reciprocal is the modular multiplicative inverse. I.e., the modular
+multiplicative inverse for @a mod b@ is and integer @x@ such that @(a * x) mod b = 1@.
 
 @since 1.0.0
 -}
@@ -189,3 +281,19 @@ require it.
 -}
 pgfFromInteger :: forall (s :: S). Integer -> Natural -> Term s PGFElement
 pgfFromInteger i n = pcon . PGFElement . pconstant $ i `mod` fromIntegral n
+
+{- | The zero element (the additive identity), which exists in every Galois
+field.
+
+@since 1.0.0
+-}
+pgfZero :: forall (s :: S). Term s PGFElement
+pgfZero = pconstant . GFElement $ 0
+
+{- | The one element (the multiplicative identity), which exists in every Galois
+field.
+
+@since 1.0.0
+-}
+pgfOne :: forall (s :: S). Term s PGFElement
+pgfOne = pconstant . GFElement $ 1
