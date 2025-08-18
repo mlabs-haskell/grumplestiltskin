@@ -164,7 +164,16 @@ instance Arbitrary GFElement where
             guard (i' >= 0)
             pure i'
 
--- | @since 1.0.0
+{- | Smart constructor for `GFElement`: given a value and a modulus, construct
+the 'GFElement' representing that value in the field of order equal to the
+modulus. The modulus should be prime, but this is not checked.
+
+= Note
+
+If given a zero modulus, this will error.
+
+@since 1.0.0
+-}
 integerToGFElement :: Integer -> Natural -> GFElement
 integerToGFElement i b = GFElement $ i `mod` fromIntegral b
 
