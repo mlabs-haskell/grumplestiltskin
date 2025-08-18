@@ -26,7 +26,6 @@ import Plutarch.Prelude (
     pnegate,
     ppowNatural,
     ppowPositive,
-    ptryNatural,
     pupcast,
     (#),
     (#*),
@@ -35,6 +34,7 @@ import Plutarch.Prelude (
     (#==),
  )
 import Plutarch.Test.Utils (precompileTerm)
+import Plutarch.Unsafe (punsafeCoerce)
 import Test.QuickCheck (
     Gen,
     Property,
@@ -246,5 +246,5 @@ propExpRing = forAllShrink gen shr $ \(n, i) ->
 
 -- Helpers
 
-pbase :: forall (s :: S). Term s PNatural
-pbase = ptryNatural # 97
+pbase :: forall (s :: S). Term s PPositive
+pbase = punsafeCoerce (97 :: Term s PInteger)
