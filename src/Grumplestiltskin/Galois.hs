@@ -217,6 +217,9 @@ instance PLiftable PGFElement where
 {- | Compute the reciprocal of a finite field element, given an order. The
 function assumes the 'PNatural' is prime, and may fail otherwise.
 
+Reciprocal is the modular multiplicative inverse. I.e., the modular
+multiplicative inverse for @a mod b@ is and integer @x@ such that @(a * x) mod b = 1@.
+
 @since 1.0.0
 -}
 pgfRecip :: Term s (PGFIntermediate :--> PNatural :--> PGFElement)
