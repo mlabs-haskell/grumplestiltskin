@@ -4,16 +4,19 @@ import Control.Monad (guard)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import Grumplestiltskin.Galois (
     PGFElement,
+    PGFElementData,
     pgfExp,
     pgfFromElem,
     pgfFromPInteger,
     pgfOne,
     pgfRecip,
+    pgfToData,
     pgfToElem,
     pgfZero,
  )
 import Numeric.Natural (Natural)
 import Plutarch.Prelude (
+    PAsData,
     PBool,
     PInteger,
     PNatural,
@@ -21,13 +24,17 @@ import Plutarch.Prelude (
     S,
     Term,
     pconstant,
+    pdata,
+    pforgetData,
     plam,
     plift,
     pnegate,
     ppowNatural,
     ppowPositive,
-    ptryNatural,
+    ptryFrom,
     pupcast,
+    tcont,
+    unTermCont,
     (#),
     (#*),
     (#+),
@@ -35,6 +42,7 @@ import Plutarch.Prelude (
     (#==),
  )
 import Plutarch.Test.Utils (precompileTerm)
+import Plutarch.Unsafe (punsafeCoerce)
 import Test.QuickCheck (
     Gen,
     Property,
@@ -68,12 +76,28 @@ main = do
             , testProperty "pgfExp equivalent to ppowNatural" propExpNat
             , testProperty "x ^ n * x ^ -n = 1 for nonzero x" propExpRing
             ]
+        , testGroup
+            "Encoding for PGFElementData"
+            [ testProperty "PTryFrom" propPTF
+            ]
         ]
   where
     moreTests :: QuickCheckTests -> QuickCheckTests
     moreTests = max 1_000
 
 -- Properties
+
+propPTF :: Property
+propPTF = forAll arbitrary $ \x ->
+    plift (precompileTerm (plam go) # pconstant x)
+  where
+    go :: forall (s :: S). Term s PGFElement -> Term s PBool
+    go t =
+        let asData = pforgetData . pdata . pgfToData t $ pbase
+            lhs = unTermCont $ do
+                (x, _) <- tcont (ptryFrom @(PAsData PGFElementData) asData)
+                pure . pforgetData $ x
+         in lhs #== asData
 
 propCommAdd :: Property
 propCommAdd = forAll arbitrary $ \(x, y) ->
@@ -246,5 +270,5 @@ propExpRing = forAllShrink gen shr $ \(n, i) ->
 
 -- Helpers
 
-pbase :: forall (s :: S). Term s PNatural
-pbase = ptryNatural # 97
+pbase :: forall (s :: S). Term s PPositive
+pbase = punsafeCoerce (97 :: Term s PInteger)
