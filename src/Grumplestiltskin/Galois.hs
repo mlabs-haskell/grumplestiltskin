@@ -24,8 +24,6 @@ module Grumplestiltskin.Galois (
 
     -- ** Element introduction
     naturalToGFElement,
-    pgfFromPInteger,
-    pgfFromInteger,
     pgfZero,
     pgfOne,
 
@@ -317,7 +315,7 @@ instance PLiftable PGFElement where
         go = mkPLifted . pupcast
 
 {- | Compute the reciprocal of a finite field element, given an order. The
-function assumes the 'PNatural' is prime, and may fail otherwise.
+function assumes the 'PPositive' argument is prime, and may fail otherwise.
 
 Reciprocal is the modular multiplicative inverse. I.e., the modular
 multiplicative inverse for @a mod b@ is and integer @x@ such that @(a * x) mod b = 1@.
@@ -329,8 +327,8 @@ pgfRecip = phoistAcyclic $ plam $ \x b ->
     pcon . PGFElement . punsafeCoerce $ pexpModInteger # pupcast @PInteger x # (-1) # pupcast b
 
 {- | @'pgfExp' # x # e # b@ computes @x@ to the power of @e@, assuming we are in
-a field of order @b@. The function assumes 'PNatural' is prime, and may fail
-otherwise.
+a field of order @b@. The function assumes the 'PPositive' argument is prime, and
+may fail otherwise.
 
 @since 1.0.0
 -}
@@ -354,27 +352,6 @@ rewrapping, and is thus effectively free.
 -}
 pgfFromElem :: forall (s :: S). Term s PGFElement -> Term s PGFIntermediate
 pgfFromElem = punsafeCoerce
-
-{- | Transform a 'PInteger' into its equivalent element in a finite field of
-order given by the 'PPositive' argument. This argument should be prime,
-although 'pgfFromPInteger' doesn't require it.
-
-@since 1.0.0
--}
-pgfFromPInteger :: forall (s :: S). Term s PInteger -> Term s PPositive -> Term s PGFElement
-pgfFromPInteger i b = pcon . PGFElement . punsafeCoerce $ pmod # i # pupcast b
-
-{- | Transform an 'Integer' into its equivalent element in a finite field of
-order given by the 'Natural' argument. This is much cheaper, as both the
-order and element are given as constants (as far as onchain is concerned).
-
-The 'Natural' argument should be prime, although 'pgfFromInteger' does not
-require it.
-
-@since 1.0.0
--}
-pgfFromInteger :: forall (s :: S). Integer -> Natural -> Term s PGFElement
-pgfFromInteger i n = pcon . PGFElement . pconstant . fromIntegral $ i `mod` fromIntegral n
 
 {- | The zero element (the additive identity), which exists in every Galois
 field.
