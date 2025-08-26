@@ -35,7 +35,7 @@ round-tripping of the `Data`-encoded representation of Galois field elements.
   form;
 * `PGFIntermediate`, representing an 'intermediate computation' on
   `PGFElement`s; and
-* `PGFElementData`, a `Data`-encoded version of `PGFElement.
+* `PGFElementData`, a `Data`-encoded version of `PGFElement`.
 
 Of these types, `PGFIntermediate` has the richest API, supporting the full set
 of field operations, while `PGFElement` and `PGFElementData` are more limited.
@@ -70,6 +70,8 @@ be in 'reduced form', and can be much larger, or even negative.
 [TODO: Continue]
 
 ### `Data`-encoded
+
+We define a single `Data`-encoded type `PGFElementData` representing Galois field elements. The difference with its SOP-encoded version `PGFElement` is the addition of data of type `PPositive` representing a field's order. The data encoded version is supposed to be in a reduced form, where the field order of `PPositive` has to be larger than the `PNatural` representing the element.
 
 [TODO: Fill in]
 
@@ -121,6 +123,8 @@ marked as low-cost, as it is entirely offchain. To promote `GFElement`s into
 `pconstant` function. If we want to do any computation, we can transform into
 `PGFIntermediate` using `pgfFromElem`; this is nothing more than a `newtype`
 rewrap and thus essentially has no cost. 
+
+On the other hand, the conversion from the computations enabled type `PGFIntermediate` to `PGFElement` is enabled using `pgfToElem`; we have to explicitly provide the field order since it reduces the element using the modulo computation to its normalised form of `PGFElement`. This conversion should be used sparingly, only at the boundaries of an algorithm to reduce the number of modulo operations, potentially ramping up the computation costs. 
 
 [TODO: Describe the rest]
 
