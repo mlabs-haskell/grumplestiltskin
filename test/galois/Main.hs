@@ -7,7 +7,6 @@ import Grumplestiltskin.Galois (
     PGFElementData,
     pgfExp,
     pgfFromElem,
-    pgfFromPInteger,
     pgfOne,
     pgfRecip,
     pgfToData,
@@ -197,7 +196,7 @@ propRecip = forAllShrink gen shr $ \n ->
         pure n'
     go :: forall (s :: S). Term s PNatural -> Term s PBool
     go t =
-        let t' = pgfFromElem . pgfFromPInteger (pupcast t) $ pbase
+        let t' = pgfFromElem $ punsafeCoerce t
          in pgfToElem (t' #* pgfFromElem (pgfRecip # t' # pbase)) pbase #== pgfOne
 
 propDistribute :: Property
@@ -263,7 +262,7 @@ propExpRing = forAllShrink gen shr $ \(n, i) ->
         Term s PInteger ->
         Term s PBool
     go n tExp =
-        let tBase = pgfFromPInteger (pupcast n) pbase
+        let tBase = punsafeCoerce n
             exp1 = pgfFromElem (pgfExp # pgfFromElem tBase # tExp # pbase)
             exp2 = pgfFromElem (pgfExp # pgfFromElem tBase # (pnegate # tExp) # pbase)
          in pgfToElem (exp1 #* exp2) pbase #== pgfOne
