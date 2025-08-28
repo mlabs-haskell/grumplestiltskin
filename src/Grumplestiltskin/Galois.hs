@@ -26,6 +26,7 @@ module Grumplestiltskin.Galois (
     naturalToGFElement,
     pgfZero,
     pgfOne,
+    pgfFromPNatural,
 
     -- ** Representation change
     pgfFromData,
@@ -352,6 +353,15 @@ rewrapping, and is thus effectively free.
 -}
 pgfFromElem :: forall (s :: S). Term s PGFElement -> Term s PGFIntermediate
 pgfFromElem = punsafeCoerce
+
+{- | Transform a 'PNatural' into its equivalent element in a finite field of
+order given by the 'PPositive' argument. This argument should be prime,
+although 'pgfFromPNatural' doesn't require it.
+
+@since 1.0.0
+-}
+pgfFromPNatural :: forall (s :: S). Term s PNatural -> Term s PPositive -> Term s PGFElement
+pgfFromPNatural x b = pcon . PGFElement . punsafeCoerce $ pmod # pupcast x # pupcast b
 
 {- | The zero element (the additive identity), which exists in every Galois
 field.
