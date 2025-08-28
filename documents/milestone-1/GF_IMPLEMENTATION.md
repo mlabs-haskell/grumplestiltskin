@@ -75,7 +75,7 @@ be in 'reduced form', and can be much larger, or even negative.
 
 We define a single `Data`-encoded type `PGFElementData` representing Galois field elements. The difference with its SOP-encoded version `PGFElement` is the addition of data of type `PPositive` representing a field's order. The data encoded version is supposed to be in a reduced form, where the field order of `PPositive` has to be larger than the `PNatural` representing the element. This constraint is defined in the decoding logic of the `PTryFrom` instance.
 
-[TODO: Fill in]
+The decision to have the field order stored on-chain may be revisited later when we implement other modules of the suite. We may later choose to have the order implicit everywhere and pass the order from somewhere other than the elements.
 
 ## Functions
 
@@ -106,6 +106,7 @@ graph TD
         C -."pgfFromElem" .-> E;
         E --"pgfToElem" --> C;
         C -."pupcast" .-> H;
+        H --"pgfFromPNatural"--> C
         B -. "pconstant" .-> C;
         C --"plift" --> B;
         A -. "pconstant" .-> H;
@@ -130,7 +131,7 @@ rewrap and thus essentially has no cost.
 
 On the other hand, the conversion from the computations enabled type `PGFIntermediate` to `PGFElement` is enabled using `pgfToElem`; we have to explicitly provide the field order since it reduces the element using the modulo computation to its normalised form of `PGFElement`. This conversion should be used sparingly, only at the boundaries of an algorithm to reduce the number of modulo operations, potentially ramping up the computation costs. 
 
-[TODO: Describe the rest]
+Lastly, we introduce a conversion `pgfFromPNatural` that can go from type `PNatural` to `PGFElement`. It provides functionality to fully stay in Plutarch context and create the `PGFElement` without needing to do the conversion manually. This makes the set of conversion functions complete.
 
 ### Field operations
 
@@ -166,6 +167,12 @@ anything we could have defined ourselves.
 
 ## Alternatives considered
 
-[TODO: Fill in]
+The most significant optimisation comes from the fact that we have introduced the intermediate type `PGFIntermediate` for computations, deferring the reduction for later stages of an algorithm when it's necessary. The alternative was not to use the intermediate type, which would significantly increase the number of operations that collide with our priorities.
+
+Next, another alternative was to represent the field order in every `PGFElement`. However, our choice making the field order implicit has time-saving the space-saving implications making it the right decision based on our priorities.
+
+The following alternatives have been reconsidered mostly for improving the code safety guarantees by utilising the type system. First, we've decided not to use the `PInteger` all over the codebase but instead use more constrained types `PNatural` and `PPositive` respectively. This improves the guarantees, e.g., ensuring the field element can't be negative or the field order being 0 or negative, which is against the invariants we expect from the Galois Field.
+
+We've realised that removing the field order from the `PGFElement` representation is a step in the right direction; however, having the elements tagged by their field order on the type level could improve the type safety of our solution. It could prevent mixing elements from different fields or get the field order from the type itself by moving the type to a term level. We've found out this is impossible to achieve because first, we'd need a mechanism for a field order received from the ledger to be promoted from a term level to the type level, and second, we would have to work with Haskell-level types, which is unacceptable in the on-chain Plutarch setting. That clearly sets the lower safety guarantees of our API going further.
 
 [galois-field]: https://en.wikipedia.org/wiki/Finite_field
