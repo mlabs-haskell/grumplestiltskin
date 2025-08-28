@@ -71,8 +71,6 @@ precisely, `PGFElement`s must be non-negative numbers strictly smaller than the
 order of their (implicit) field. `PGFIntermediate`, however, is not required to
 be in 'reduced form', and can be much larger, or even negative.
 
-[TODO: Continue]
-
 ### `Data`-encoded
 
 We define a single `Data`-encoded type `PGFElementData` representing Galois field elements. The difference with its SOP-encoded version `PGFElement` is the addition of data of type `PPositive` representing a field's order. The data encoded version is supposed to be in a reduced form, where the field order of `PPositive` has to be larger than the `PNatural` representing the element. This constraint is defined in the decoding logic of the `PTryFrom` instance.
