@@ -134,8 +134,8 @@ marked as low-cost, as it is entirely offchain. To promote `GFElement`s into
 `PGFIntermediate` using `pgfFromElem`; this is nothing more than a `newtype`
 rewrap and thus essentially has no cost. 
 
-Next, we introduce a conversion `pgfFromPNatural` that can go from type `PNatural` to `PGFElement`. 
-It provides functionality to fully stay in Plutarch context and create the `PGFElement` without needing to do the conversion manually. 
+Next, we introduce a conversion `pgfFromPNatural` that converts `PNatural` to `PGFElement`, using a modulo operation as specified by a `PPositive` argument for the field order.
+It provides functionality to fully stay in the Plutarch context and create the `PGFElement` without needing to do the conversion manually. 
 Note that this conversion is marked as a higher cost operation because of doing modulo internally.
 
 Lastly, the conversion from the computations enabled type `PGFIntermediate` to `PGFElement` is enabled using `pgfToElem`; we have to explicitly provide the field order since it reduces the element using the modulo computation to its normalised form of `PGFElement`. 
@@ -181,22 +181,52 @@ We've considered multiple alternatives and implementation details that we descri
 - Type-tagging `PGFElement` with its field order
 - Using only `PInteger` everywhere
 
-The most significant optimisation comes from the fact that we have introduced the intermediate type `PGFIntermediate` for computations, deferring the reduction to be the last step in a computation. 
+The most significant optimisation comes from the fact that we have introduced the intermediate type `PGFIntermediate` for computations, deferring the reduction to be the last step in a computation where possible. 
 The alternative was not to use the intermediate type, which would significantly increase the number of operations, since we'd be doing reduction at every step. 
-Having `n` operations, we would do `n` reductions instead of a single reduction at the end when using the `PGFIntermediate`. 
+Having `n` operations, we would do `n` reductions instead of a single reduction at the end when using the `PGFIntermediate`.  
 Imagine `a`, `b`, `c` being numbers, `y` being the resulting element, and `x` being a field order; we pick the following formula `a + b * c = y mod x` as our example to demonstrate the difference. In case of no intermediate element, the calculation looks like this: `(a + (b * c) mod x) mod x = y`; Having two binary operations, we make two modulo operations on top of the addition and multiplication. 
-However, in the case of an intermediate element, we can assume the calculation doesn't need modulo reduction at every step and can be done at the end, as displayed by our original formula: `a + b * c = y mod x`. The result `y` is equivalent in both cases, but one has done fewer operations than the other to achieve the result.
+However, in the case of an intermediate element, we can assume the calculation doesn't need modulo reduction at every step and can be done at the end, as displayed by our original formula: `a + b * c = y mod x`. The result `y` is equivalent in both cases, but one has done fewer operations than the other to achieve the result. However, in some cases, the reduction is unavoidable: for example, when calculating a reciprocal, the result is already reduced. In those situations, we chose to return results as `PGFElement`s. If we need further computations, converting a `PGFElement` to a `PGFIntermediate` is cheap, and this way, we don't 'lose' information about 'reducedness'.
 
-Next, another alternative was to represent the field order in every `PGFElement`. 
-However, in combination with our choice of reducing the number of reductions described previously, we can make the field order implicit in most places and use it only when we reduce at the end of a calculation. 
-Making the field order implicit in some situations and not being carried everywhere has time-saving and space-saving implications, making it the right decision based on our priorities.
+Next, another alternative was to represent the field order in every `PGFElement`. This would be of little benefit, especially in combination with our use of `PGFIntermediate` to avoid reductions. We would have to pay an extra cost to store the field order in every field element, but would only use it in a few situations. While this would be safer, it would double the memory cost of all operations. Given that our Galois field arithmetic definitions would be part of higher-level operations on elliptic curves, we decided the penalty would be unacceptable here.
 
-We've realised that removing the field order from an element's representation is a step in the right direction; however, having the elements tagged by their field order on the type level could improve the type safety of our solution. 
-It could prevent mixing elements from different fields or get the field order from the type itself by moving the type to a term level. 
-We've found out this is impossible to achieve because first, we'd need a mechanism for a field order received from the ledger to be promoted from a term level to the type level, and second, we would have to work with Haskell-level types, which is unacceptable in the on-chain Plutarch setting. 
-That clearly sets the lower safety guarantees of our API going further.
+Another alternative would be having type tagging of `PGFElement`s with their
+field order. In this alternative, our definition would look as follows:
 
-To achieve at least a little level of type safety, we've decided not to use the `PInteger` all over the codebase but instead use more constrained types `PNatural` and `PPositive` respectively. 
-For the cost of introducing some level of additional friction by using these types, this also improves the guarantees, e.g., ensuring the field element can't be negative or the field order being 0 or negative, which is against the invariants we expect from the Galois Field.
+```haskell
+data PGFElement (order :: Natural) (s :: S) = PGFElement (Term s PNatural)
+```
+
+This would theoretically allow us to benefit from both the efficiency of not
+storing the field order at the value level, as well as the safety of always
+knowing the field order. 
+
+If we had a statically-known order, this could be made to work by requiring a
+type argument when decoding:
+
+```
+pgfFromData :: Term s PGFElementData -> Term s (PGFElement order)
+```
+
+This would use a combination of `natVal` and `pconstant` to retrieve the
+`Natural` corresponding to `order`, then compare the result to the field order
+encoded in `PGFElementData`, erroring if it fails. However, the purpose of the
+Grumplestiltskin project is to be able to work in _any_ required Galois field;
+thus, we cannot assume that the code would have statically know the field order.
+In this case, we would have to somehow 'promote' the `PPositive` stored in
+`PGFElementData` to the correct type-level `Natural`, which is not possible for
+two reasons:
+
+* This technique requires dependent typing, which [GHC does not
+  support][dependent-typing]; and
+* The only way to 'translate' a Plutarch type into its Haskell equivalent is by
+  using `plift`, which is not viable.
+
+Thus, we cannot have this kind of safety, and instead chose the approach we
+described previously. However, to achieve at least some type safety, we chose to
+use `PPositive` and `PNatural` over `PInteger` for as much of the API as
+possible. While this does carry some cost, both in terms of extra work on the
+codebase and in terms of performance, this gives us at least some guarantees of
+correctness which can be checked by the compiler.
 
 [galois-field]: https://en.wikipedia.org/wiki/Finite_field
+[dependent-typing]: https://wiki.haskell.org/Dependent_type
