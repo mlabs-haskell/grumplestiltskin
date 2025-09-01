@@ -178,8 +178,8 @@ anything we could have defined ourselves.
 We've considered multiple alternatives and implementation details that we describe in this section:
 - Having no intermediate type `PGFIntermediate` for computations
 - Field order is being explicitly represented and carried by the element everywhere
-- Using only `PInteger` everywhere
 - Type-tagging `PGFElement` with its field order
+- Using only `PInteger` everywhere
 
 The most significant optimisation comes from the fact that we have introduced the intermediate type `PGFIntermediate` for computations, deferring the reduction to be the last step in a computation. 
 The alternative was not to use the intermediate type, which would significantly increase the number of operations, since we'd be doing reduction at every step. 
