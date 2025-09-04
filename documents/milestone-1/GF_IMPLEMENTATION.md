@@ -219,7 +219,8 @@ two reasons:
 * This technique requires dependent typing, which [GHC does not
   support][dependent-typing]; and
 * The only way to 'translate' a Plutarch type into its Haskell equivalent is by
-  using `plift`, which is not viable.
+  using `plift`. As this involves running the Plutus abstract machine (and thus,
+  cannot be done onchain), this is not viable.
 
 Thus, we cannot have this kind of safety, and instead chose the approach we
 described previously. However, to achieve at least some type safety, we chose to
