@@ -57,11 +57,15 @@ common test-lang
     , plutarch-testlib
     , QuickCheck
     , tasty
+    , tasty-hunit
     , tasty-quickcheck
 
 library
   import:          lang
-  exposed-modules: Grumplestiltskin.Galois
+  exposed-modules:
+    Grumplestiltskin.EllipticCurve
+    Grumplestiltskin.Galois
+
   build-depends:
     , generics-sop
     , QuickCheck
@@ -75,3 +79,10 @@ test-suite galois
   main-is:        Main.hs
   build-depends:  quickcheck-instances
   hs-source-dirs: test/galois
+
+test-suite ec
+  import:         test-lang
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  build-depends:  quickcheck-instances
+  hs-source-dirs: test/ec
