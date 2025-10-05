@@ -1,26 +1,45 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
-{-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
-module Grumplestiltskin.EllipticCurve (pAddPoints, pToPoint, PECIntermediatePoint (PECIntermediatePoint), PECPoint (PECPoint)) where
+{- | A general implementation for elliptic curves over finite field.
+
+The general formula for these functions is: @y^2 = X^2 + a * x + b (mod r)@.
+-}
+module Grumplestiltskin.EllipticCurve (pAddPoints, pPointDouble, pToPoint, PECIntermediatePoint (PECIntermediatePoint), PECPoint (PECPoint)) where
 
 import GHC.Generics (Generic)
 import Generics.SOP qualified as SOP
-import Grumplestiltskin.Galois (PGFElement, PGFIntermediate, pgfFromData, pgfFromElem, pgfRecip, pgfToElem)
-import Plutarch.Builtin.Bool (PBool)
+import Grumplestiltskin.Galois (PGFElement, PGFIntermediate, pgfFromElem, pgfRecip, pgfToElem, pgfZero)
 import Plutarch.Internal.PlutusType (pmatch)
-import Plutarch.Internal.Term (S, Term)
+import Plutarch.Internal.Term (S, Term, punsafeCoerce)
 import Plutarch.Pair (PPair (PPair))
-import Plutarch.Prelude (DeriveNewtypePlutusType (DeriveNewtypePlutusType), PEq, PPositive, PShow, PlutusType, pcon, pconstant, pupcast, (#), (#*), (#-))
+import Plutarch.Prelude (
+    DeriveNewtypePlutusType (DeriveNewtypePlutusType),
+    PEq,
+    PInteger,
+    PPositive,
+    PlutusType,
+    pcon,
+    pif,
+    pupcast,
+    (#),
+    (#&&),
+    (#*),
+    (#+),
+    (#-),
+    (#==),
+ )
 
 {-
-Calculator: https://www.graui.de/code/elliptic2/
+Calculators:
+- "https://www.graui.de/code/elliptic2/"
+- "https://andrea.corbellini.name/ecc/interactive/modk-add.html"
 
 Resources:
 - "https://rareskills.io/post/elliptic-curves-finite-fields"
 - Handbook of Elliptic and Hyperelliptic Curve Cryptography -- Henri Cohen, ...
 - "http://koclab.cs.ucsb.edu/teaching/ecc/eccPapers/Washington-ch04.pdf" (some examples and proofs)
+- "https://andrea.corbellini.name/2015/05/17/elliptic-curve-cryptography-a-gentle-introduction/"
 
 Functionality of Elliptic curve over finite field. (cyclic groups)
 
@@ -91,29 +110,66 @@ newtype PECIntermediatePoint (s :: S) = PECIntermediatePoint (Term s (PPair PGFI
         (PlutusType)
         via (DeriveNewtypePlutusType PECIntermediatePoint)
 
-pToPoint :: forall (s :: S). Term s PECIntermediatePoint -> Term s PPositive -> Term s PECPoint
-pToPoint p fieldModulus =
+pToPoint :: forall (s :: S). Term s PPositive -> Term s PECIntermediatePoint -> Term s PECPoint
+pToPoint fieldModulus p =
     pcon $
         PECPoint $
             pmatch
                 (pupcast p)
                 (\(PPair x y) -> pcon $ PPair (pgfToElem x fieldModulus) (pgfToElem y fieldModulus))
 
-pAddPoints :: forall (s :: S). Term s PPositive -> Term s PECIntermediatePoint -> Term s PECIntermediatePoint -> Term s PECIntermediatePoint
-pAddPoints fieldModulus point1 point2 =
+{- | @P + Q = R@ where @R@ is the inverse of a point on the intersection of the curve and the line defined by @P@ and @Q@.
+In case @P == Q@, we calculate the @2P@.
+-}
+pAddPoints :: forall (s :: S). Term s PPositive -> Term s PInteger -> Term s PECIntermediatePoint -> Term s PECIntermediatePoint -> Term s PECIntermediatePoint
+pAddPoints fieldModulus curveA point1 point2 =
+    pmatch
+        (pupcast point1)
+        ( \(PPair pointX1 pointY1) ->
+            pmatch
+                (pupcast point2)
+                ( \(PPair pointX2 pointY2) ->
+                    let
+                        -- TODO: maybe for the `yDiff` and `xDiff`, the `plet` should be used?
+                        yDiff = pointY1 #- pointY2
+                        xDiff = (pointX1 #- pointX2)
+                     in
+                        pif
+                            -- Are the points equal?
+                            -- Doing the modulo normalisation 2x as part of `pgfToElem`. Can we do better?
+                            -- TODO: handle the case when X coordinates of both points are the same.
+                            (pgfToElem yDiff fieldModulus #== pgfZero #&& pgfToElem xDiff fieldModulus #== pgfZero)
+                            (pPointDouble fieldModulus curveA point1)
+                            ( let lambdaNum = yDiff
+                                  lambdaDenum = pgfFromElem $ pgfRecip # xDiff # fieldModulus
+                                  lambda = lambdaNum #* lambdaDenum
+                                  pointX3 = ((lambda #* lambda) #- pointX1) #- pointX2
+                                  pointY3 = (lambda #* (pointX1 #- pointX3)) #- pointY1
+                               in pcon $ PECIntermediatePoint $ pcon $ PPair pointX3 pointY3
+                            )
+                )
+        )
+
+-- | @2P = R@ where @R@ is the inverse of a point at the intersection of the @P@'s tangent and the curve.
+pPointDouble :: forall (s :: S). Term s PPositive -> Term s PInteger -> Term s PECIntermediatePoint -> Term s PECIntermediatePoint
+pPointDouble fieldModulus curveA point =
     pcon $
         PECIntermediatePoint $
             pmatch
-                (pupcast point1)
-                ( \(PPair point1x point1y) ->
-                    pmatch
-                        (pupcast point2)
-                        ( \(PPair point2x point2y) ->
-                            let lambdaNum = point1y #- point2y
-                                lambdaDenum = pgfFromElem $ pgfRecip # (point1x #- point2x) # fieldModulus
-                                lambda = lambdaNum #* lambdaDenum
-                                point3x = ((lambda #* lambda) #- point1x) #- point2x
-                                point3y = (lambda #* (point1x #- point3x)) #- point1y
-                             in pcon $ PPair point3x point3y
-                        )
+                (pupcast point :: Term s (PPair PGFIntermediate PGFIntermediate))
+                ( \(PPair pointX1 pointY1) ->
+                    let lambdaNum = (pgf3 #* (pointX1 #* pointX1)) #+ punsafeCoerce curveA
+                        lambdaDenum = pgfFromElem $ pgfRecip # (pgf2 #* pointY1) # fieldModulus
+                        lambda = lambdaNum #* lambdaDenum
+                        pointX2 = (lambda #* lambda) #- (pgf2 #* pointX1)
+                        pointY2 = (lambda #* (pointX1 #- pointX2)) #- pointY1
+                     in pcon $ PPair pointX2 pointY2
                 )
+
+-- | A constant @2@
+pgf2 :: Term s PGFIntermediate
+pgf2 = punsafeCoerce (2 :: Term s PInteger)
+
+-- | A constant @3@
+pgf3 :: Term s PGFIntermediate
+pgf3 = punsafeCoerce (3 :: Term s PInteger)
