@@ -32,7 +32,7 @@
     hercules-ci-effects.url = "github:hercules-ci/hercules-ci-effects";
   };
 
-  outputs = inputs@{ flake-parts, nixpkgs, haskell-nix, iohk-nix, CHaP, plutarch, ... }:
+  outputs = inputs@{ flake-parts, haskell-nix, iohk-nix, CHaP, plutarch, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
         ./nix/pre-commit.nix
@@ -55,8 +55,8 @@
             };
           project = pkgs.haskell-nix.cabalProject' {
             src = ./.;
-            compiler-nix-name = "ghc966";
-            index-state = "2024-10-09T22:38:57Z";
+            compiler-nix-name = "ghc984";
+            index-state = "2025-09-22T06:47:49Z";
             inputMap = {
               "https://chap.intersectmbo.org/" = CHaP;
               "https://plutarch-plutus.org/" = plutarch;

@@ -81,7 +81,6 @@ import Plutarch.Prelude (
     PlutusType,
     S,
     Term,
-    pasInt,
     pasList,
     pcon,
     pconstant,
@@ -98,7 +97,6 @@ import Plutarch.Prelude (
     ptailBuiltin,
     ptraceInfo,
     ptryFrom,
-    ptryNatural,
     pupcast,
     runTermCont,
     tcont,
@@ -378,10 +376,3 @@ field.
 -}
 pgfOne :: forall (s :: S). Term s PGFElement
 pgfOne = pconstant . GFElement $ 1
-
--- Orphans
-
-instance PTryFrom PData (PAsData PNatural) where
-    ptryFrom' opq = runTermCont $ do
-        i <- tcont $ plet (pasInt # opq)
-        pure (pdata $ ptryNatural # i, ())
