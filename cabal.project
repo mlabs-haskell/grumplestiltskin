@@ -9,22 +9,28 @@ repository cardano-haskell-packages
     c00aae8461a256275598500ea0e187588c35a5d5d7454fb57eac18d9edb86a56
     d4a35cd3121aa00d18544bb0ac01c3e1691d618f462c46129271bccf39f7e8ee
 
-repository plutarch-packages
-  url: https://plutarch-plutus.org/
-  secure: True
-  root-keys:
-    369731baba254a80079d42d3e8448fd77da5e551169ef8a7ff10cdb9ca1031d8
-    af39b444bdf664096ee5fc4bd89319b0f027346828567837954ce16a16cde2fc
-    e02083ae6794b540ea648606c4a42b467d7e761c6c727bb71fb0e5caa335b36c
+-- repository plutarch-packages
+--  url: https://plutarch-plutus.org/
+--  secure: True
+--  root-keys:
+--    369731baba254a80079d42d3e8448fd77da5e551169ef8a7ff10cdb9ca1031d8
+--    af39b444bdf664096ee5fc4bd89319b0f027346828567837954ce16a16cde2fc
+--    e02083ae6794b540ea648606c4a42b467d7e761c6c727bb71fb0e5caa335b36c
 
 source-repository-package
   type: git
   location: https://github.com/Plutonomicon/plutarch-plutus
-  tag: 75c06ef1e77742916574414975f76ddac59cce4a
-  --sha256: 0wj9g782vcxr2a3zj3cshdx317wfhjg77hzj2jmp8b17yddqpy2d
-  subdir: plutarch-testlib
+  tag: 9eab975192146718dc8990d8b542b19a916044b4
+  subdir: plutarch-testlib plutarch-ledger-api plutarch-orphanage
+  --sha256: 0y0k12plx381f2v4ayclzjx4w5kj6xib56kcazs50x6fxpdv45np
 
-index-state: 2024-10-09T22:38:57Z
+source-repository-package
+  type: git
+  location: https://github.com/Plutonomicon/plutarch-plutus
+  tag: 9eab975192146718dc8990d8b542b19a916044b4
+  --sha256: 0y0k12plx381f2v4ayclzjx4w5kj6xib56kcazs50x6fxpdv45np
+
+index-state: 2025-09-22T06:47:49Z
 
 packages: grumplestiltskin.cabal
 
