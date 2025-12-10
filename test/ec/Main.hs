@@ -1,12 +1,13 @@
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
 module Main (main, showPoint) where
 
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
-import Grumplestiltskin.EllipticCurve (PECIntermediatePoint (PECIntermediatePoint), PECPoint, pAddPoints, pToPoint)
-import Grumplestiltskin.Galois (PGFElement)
+import Grumplestiltskin.EllipticCurve (PECIntermediatePoint (PECIntermediateInfinity, PECIntermediatePoint), PECPoint (PECInfinity, PECPoint), pAddPoints, pToPoint)
 import Plutarch.Builtin.Integer (PInteger)
 import Plutarch.Internal.Term (Term, punsafeCoerce)
 import Plutarch.Pair (PPair (PPair))
-import Plutarch.Prelude (PPositive, PString, pcon, pconstant, plift, pmatch, pshow, pupcast, (#&&), (#==))
+import Plutarch.Prelude (PPositive, PString, pcon, pconstant, plift, pmap, pmatch, pshow, (#&&), (#==))
 import Plutarch.Test.Utils (precompileTerm)
 import Test.QuickCheck.Instances.Natural ()
 import Test.Tasty (adjustOption, defaultMain, testGroup)
@@ -42,6 +43,8 @@ main = do
                                         , createPoint 1 2
                                         , createPoint 7 4
                                         , createPoint 4 1
+                                        , pcon PECIntermediateInfinity
+                                        , generatorPoint
                                         ]
                                  in zip
                                         (case1AdditionTest generatorPoint (length expectedPoints))
@@ -60,13 +63,15 @@ main = do
 -- | For debugging purposes
 showPoint :: Term s PECPoint -> Term s PString
 showPoint p =
-    pshow @(PPair PInteger PInteger) $
-        pmatch
-            (pupcast p)
-            (\(PPair (x :: Term s PGFElement) (y :: Term s PGFElement)) -> pcon $ PPair (unsafeCoerce x) (unsafeCoerce y))
+    pmatch
+        p
+        ( \case
+            PECInfinity -> "Inf"
+            (PECPoint x y) -> pshow @(PPair PInteger PInteger) $ pcon $ PPair (unsafeCoerce x) (unsafeCoerce y)
+        )
 
 createPoint :: Term s PInteger -> Term s PInteger -> Term s PECIntermediatePoint
-createPoint x y = pcon $ PECIntermediatePoint $ pcon $ PPair (unsafeCoerce x) (unsafeCoerce y)
+createPoint x y = pcon $ PECIntermediatePoint (unsafeCoerce x) (unsafeCoerce y)
 
 mkPPositive :: Term s PInteger -> Term s PPositive
 mkPPositive = punsafeCoerce
