@@ -1,0 +1,17 @@
+pgfZero {"exBudgetCPU":16100,"exBudgetMemory":200,"scriptSizeBytes":7}
+pgfOne {"exBudgetCPU":16100,"exBudgetMemory":200,"scriptSizeBytes":7}
+pgfFromPNatural {"exBudgetCPU":239108,"exBudgetMemory":604,"scriptSizeBytes":84}
+pgfFromData {"exBudgetCPU":199994,"exBudgetMemory":764,"scriptSizeBytes":55}
+pgfToData {"exBudgetCPU":718430,"exBudgetMemory":2632,"scriptSizeBytes":103}
+pgfRecip {"exBudgetCPU":2645553,"exBudgetMemory":1106,"scriptSizeBytes":58}
+pgfExp positive {"exBudgetCPU":2480345,"exBudgetMemory":704,"scriptSizeBytes":54}
+ppowPositive {"exBudgetCPU":11614581,"exBudgetMemory":38424,"scriptSizeBytes":67}
+pgfExp negative {"exBudgetCPU":2645553,"exBudgetMemory":1106,"scriptSizeBytes":59}
+plus {"exBudgetCPU":181308,"exBudgetMemory":602,"scriptSizeBytes":13}
+square {"exBudgetCPU":171053,"exBudgetMemory":602,"scriptSizeBytes":13}
+pscalePositive {"exBudgetCPU":171053,"exBudgetMemory":602,"scriptSizeBytes":13}
+pscaleNatural {"exBudgetCPU":171053,"exBudgetMemory":602,"scriptSizeBytes":13}
+pscaleInteger positive {"exBudgetCPU":171053,"exBudgetMemory":602,"scriptSizeBytes":13}
+pscaleInteger negative {"exBudgetCPU":336261,"exBudgetMemory":1004,"scriptSizeBytes":18}
+pgfToElem reduced {"exBudgetCPU":165948,"exBudgetMemory":604,"scriptSizeBytes":49}
+pgfToElem not reduced {"exBudgetCPU":239108,"exBudgetMemory":604,"scriptSizeBytes":85}
