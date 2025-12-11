@@ -20,15 +20,15 @@ repository cardano-haskell-packages
 source-repository-package
   type: git
   location: https://github.com/Plutonomicon/plutarch-plutus
-  tag: 9eab975192146718dc8990d8b542b19a916044b4
+  tag: 0850d1c353f907e45da155215dbdd3123fa6e614
   subdir: plutarch-testlib plutarch-ledger-api plutarch-orphanage
-  --sha256: 0y0k12plx381f2v4ayclzjx4w5kj6xib56kcazs50x6fxpdv45np
+  --sha256: 17wxdfavjzbq0cgwr7bs45ma1lzxab417jqnbnkzas2zpp6i1ig5
 
 source-repository-package
   type: git
   location: https://github.com/Plutonomicon/plutarch-plutus
-  tag: 9eab975192146718dc8990d8b542b19a916044b4
-  --sha256: 0y0k12plx381f2v4ayclzjx4w5kj6xib56kcazs50x6fxpdv45np
+  tag: 0850d1c353f907e45da155215dbdd3123fa6e614
+  --sha256: 17wxdfavjzbq0cgwr7bs45ma1lzxab417jqnbnkzas2zpp6i1ig5
 
 index-state: 2025-09-22T06:47:49Z
 

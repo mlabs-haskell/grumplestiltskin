@@ -77,6 +77,7 @@ import Plutarch.Prelude (
     PNatural,
     POrd,
     PPositive,
+    PShow,
     PTryFrom (ptryFrom'),
     PlutusType,
     S,
@@ -295,6 +296,9 @@ instance PEq PGFElement
 
 -- | @since 1.0.0
 instance POrd PGFElement
+
+-- | @since wip
+instance PShow PGFElement
 
 -- | @since 1.0.0
 instance PLiftable PGFElement where

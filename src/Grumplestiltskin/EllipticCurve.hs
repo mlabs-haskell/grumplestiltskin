@@ -22,6 +22,7 @@ import Plutarch.Prelude (
     PEq,
     PInteger,
     PPositive,
+    PShow,
     pcon,
     pif,
     pletC,
@@ -104,6 +105,8 @@ data PECPoint (s :: S)
         via (DeriveAsSOPStruct PECPoint)
 
 instance PEq PECPoint
+
+instance PShow PECPoint
 
 data PECIntermediatePoint (s :: S)
     = PECIntermediatePoint (Term s PGFIntermediate) (Term s PGFIntermediate)

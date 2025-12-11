@@ -54,6 +54,7 @@ common test-lang
   ghc-options:   -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
     , grumplestiltskin
+    , indexed-traversable
     , plutarch-testlib
     , QuickCheck
     , tasty
