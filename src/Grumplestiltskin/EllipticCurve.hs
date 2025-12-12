@@ -3,7 +3,7 @@
 
 {- | A general implementation for elliptic curves over finite field.
 
-The general formula for these functions is: @y^2 = X^2 + a * x + b (mod r)@.
+The general formula for these functions is: @y^2 = x^3 + a * x + b (mod r)@.
 -}
 module Grumplestiltskin.EllipticCurve (
     paddPoints,

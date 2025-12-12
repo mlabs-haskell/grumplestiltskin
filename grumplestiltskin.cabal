@@ -54,9 +54,9 @@ common test-lang
   ghc-options:   -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
     , grumplestiltskin
-    , indexed-traversable
     , plutarch-testlib
     , QuickCheck
+    , quickcheck-instances
     , tasty
     , tasty-hunit
     , tasty-quickcheck
@@ -78,12 +78,15 @@ test-suite galois
   import:         test-lang
   type:           exitcode-stdio-1.0
   main-is:        Main.hs
-  build-depends:  quickcheck-instances
   hs-source-dirs: test/galois
 
 test-suite ec
   import:         test-lang
   type:           exitcode-stdio-1.0
   main-is:        Main.hs
-  build-depends:  quickcheck-instances
+  other-modules:  GenCurve
+  build-depends:
+    , indexed-traversable
+    , vector-sized
+
   hs-source-dirs: test/ec

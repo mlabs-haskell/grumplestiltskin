@@ -3,16 +3,20 @@
 module Main (main) where
 
 import Data.Functor.WithIndex (imap)
+import Data.Proxy (Proxy (Proxy))
+import Data.Vector.Unboxed.Sized qualified as Vector
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
+import GenCurve (GenCurvePoints (GenCurvePoints))
 import Grumplestiltskin.EllipticCurve (
     PECIntermediatePoint (PECIntermediateInfinity, PECIntermediatePoint),
     PECPoint,
     paddPoints,
     ptoPoint,
  )
-import Plutarch.Builtin.Integer (PInteger)
 import Plutarch.Internal.Term (Term, punsafeCoerce)
 import Plutarch.Prelude (
+    PBool,
+    PInteger,
     PPositive,
     S,
     pcon,
@@ -20,14 +24,17 @@ import Plutarch.Prelude (
     pfix,
     pif,
     plam,
+    plet,
+    plift,
     (#),
     (#==),
     (:-->),
  )
 import Plutarch.Test.Unit (testEvalEqual)
 import Plutarch.Test.Utils (precompileTerm)
-import Test.QuickCheck.Instances.Natural ()
+import Test.QuickCheck (Property, arbitrary, forAllShrinkShow, shrink)
 import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty.QuickCheck (testProperty)
 import Unsafe.Coerce (unsafeCoerce)
 
 main :: IO ()
@@ -36,9 +43,13 @@ main = do
     setLocaleEncoding utf8
     defaultMain . testGroup "Elliptic curve tests" $
         [ testGroup
-            "Case 1: y^2 = x^2 + 3 (mod 11), generator (4, 10)"
+            "Case 1: y^2 = x^3 + 3 (mod 11), generator (4, 10)"
             . imap mkTestCase
             $ expectedPoints
+        , testGroup
+            "Case 2: properties"
+            [ testProperty "paddPoints associates" propAssocAdd
+            ]
         ]
   where
     mkTestCase :: Int -> (forall (s :: S). Term s PECIntermediatePoint) -> TestTree
@@ -47,6 +58,43 @@ main = do
             ("Point after " <> show i <> " successors")
             (nsucc $ fromIntegral i)
             (ptoPoint fieldModulus p)
+
+-- Properties
+
+propAssocAdd :: Property
+propAssocAdd = forAllShrinkShow (arbitrary @(GenCurvePoints 3)) shrink show $ \(GenCurvePoints order constantA _ points) ->
+    let (x1, y1) = Vector.index' points (Proxy @0)
+        (x2, y2) = Vector.index' points (Proxy @1)
+        (x3, y3) = Vector.index' points (Proxy @2)
+     in plift
+            ( precompileTerm (plam go)
+                # pconstant (fromIntegral x1)
+                # pconstant (fromIntegral y1)
+                # pconstant (fromIntegral x2)
+                # pconstant (fromIntegral y2)
+                # pconstant (fromIntegral x3)
+                # pconstant (fromIntegral y3)
+                # pconstant (fromIntegral order)
+                # pconstant (fromIntegral constantA)
+            )
+  where
+    go ::
+        forall (s :: S).
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PBool
+    go x1 y1 x2 y2 x3 y3 order constantA = plet (createPoint x1 y1) $ \p1 ->
+        plet (createPoint x2 y2) $ \p2 ->
+            plet (createPoint x3 y3) $ \p3 ->
+                let order' = punsafeCoerce order
+                 in ptoPoint order' (paddPoints order' constantA p1 (paddPoints order' constantA p2 p3))
+                        #== ptoPoint order' (paddPoints order' constantA (paddPoints order' constantA p1 p2) p3)
 
 -- Helpers
 
