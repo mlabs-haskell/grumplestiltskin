@@ -7,8 +7,8 @@ import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import Grumplestiltskin.EllipticCurve (
     PECIntermediatePoint (PECIntermediateInfinity, PECIntermediatePoint),
     PECPoint,
-    pAddPoints,
-    pToPoint,
+    paddPoints,
+    ptoPoint,
  )
 import Plutarch.Builtin.Integer (PInteger)
 import Plutarch.Internal.Term (Term, punsafeCoerce)
@@ -42,7 +42,11 @@ main = do
         ]
   where
     mkTestCase :: Int -> (forall (s :: S). Term s PECIntermediatePoint) -> TestTree
-    mkTestCase i p = testEvalEqual ("Point after " <> show i <> " successors") (nsucc $ fromIntegral i) (pToPoint fieldModulus p)
+    mkTestCase i p =
+        testEvalEqual
+            ("Point after " <> show i <> " successors")
+            (nsucc $ fromIntegral i)
+            (ptoPoint fieldModulus p)
 
 -- Helpers
 
@@ -76,7 +80,7 @@ nsucc i = go # pconstant i
     go =
         precompileTerm
             ( plam $ \steps ->
-                pToPoint fieldModulus (pfix (\self -> plam $ \acc remaining -> pif (remaining #== 0) acc (self # pAddPoints fieldModulus 0 acc generatorPoint # (remaining - 1))) # generatorPoint # steps)
+                ptoPoint fieldModulus (pfix (\self -> plam $ \acc remaining -> pif (remaining #== 0) acc (self # paddPoints fieldModulus 0 acc generatorPoint # (remaining - 1))) # generatorPoint # steps)
             )
 
 createPoint :: Term s PInteger -> Term s PInteger -> Term s PECIntermediatePoint

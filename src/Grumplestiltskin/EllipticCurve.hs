@@ -6,9 +6,9 @@
 The general formula for these functions is: @y^2 = X^2 + a * x + b (mod r)@.
 -}
 module Grumplestiltskin.EllipticCurve (
-    pAddPoints,
-    pPointDouble,
-    pToPoint,
+    paddPoints,
+    ppointDouble,
+    ptoPoint,
     PECIntermediatePoint (PECIntermediatePoint, PECIntermediateInfinity),
     PECPoint (PECPoint, PECInfinity),
 ) where
@@ -25,8 +25,6 @@ import Plutarch.Prelude (
     PShow,
     pcon,
     pif,
-    pletC,
-    unTermCont,
     (#),
     (#*),
     (#+),
@@ -96,10 +94,8 @@ The optimized version structures EC points as 3-tuples, which are harder to inte
 data PECPoint (s :: S)
     = PECPoint (Term s PGFElement) (Term s PGFElement)
     | PECInfinity
-    deriving stock
-        (Generic)
-    deriving anyclass
-        (SOP.Generic)
+    deriving stock (Generic)
+    deriving anyclass (SOP.Generic)
     deriving
         (PlutusType)
         via (DeriveAsSOPStruct PECPoint)
@@ -111,87 +107,58 @@ instance PShow PECPoint
 data PECIntermediatePoint (s :: S)
     = PECIntermediatePoint (Term s PGFIntermediate) (Term s PGFIntermediate)
     | PECIntermediateInfinity
-    deriving stock
-        (Generic)
-    deriving anyclass
-        (SOP.Generic)
+    deriving stock (Generic)
+    deriving anyclass (SOP.Generic)
     deriving
         (PlutusType)
         via (DeriveAsSOPStruct PECIntermediatePoint)
 
-pToPoint :: forall (s :: S). Term s PPositive -> Term s PECIntermediatePoint -> Term s PECPoint
-pToPoint fieldModulus p =
-    pmatch
-        p
-        ( \case
-            PECIntermediateInfinity -> pcon PECInfinity
-            PECIntermediatePoint x y -> pcon $ PECPoint (pgfToElem x fieldModulus) (pgfToElem y fieldModulus)
-        )
+ptoPoint :: forall (s :: S). Term s PPositive -> Term s PECIntermediatePoint -> Term s PECPoint
+ptoPoint fieldModulus p = pmatch p $ \case
+    PECIntermediateInfinity -> pcon PECInfinity
+    PECIntermediatePoint x y -> pcon $ PECPoint (pgfToElem x fieldModulus) (pgfToElem y fieldModulus)
 
 {- | @P + Q = R@ where @R@ is the inverse of a point on the intersection of the curve and the line defined by @P@ and @Q@.
 In case @P == Q@, we calculate the @2P@.
 -}
-pAddPoints :: forall (s :: S). Term s PPositive -> Term s PInteger -> Term s PECIntermediatePoint -> Term s PECIntermediatePoint -> Term s PECIntermediatePoint
-pAddPoints fieldModulus curveA point1 point2 =
-    pmatch
-        point1
-        ( \case
-            -- Point at infinity behaves as addition identity element
-            PECIntermediateInfinity -> point2
-            (PECIntermediatePoint pointX1 pointY1) ->
-                pmatch
-                    point2
-                    ( \case
-                        -- Point at infinity behaves as addition identity element
-                        PECIntermediateInfinity -> point1
-                        PECIntermediatePoint pointX2 pointY2 ->
-                            unTermCont
-                                ( do
-                                    yDiff <- pletC (pointY1 #- pointY2)
-                                    xDiff <- pletC (pointX1 #- pointX2)
-                                    pure $
-                                        pif
-                                            -- Doing the modulo normalisation 2x as part of `pgfToElem`. Can we do better?
-                                            (pgfToElem xDiff fieldModulus #== pgfZero)
-                                            ( pif
-                                                (pgfToElem yDiff fieldModulus #== pgfZero)
-                                                -- The case when both of the points are equal.
-                                                (pPointDouble fieldModulus curveA point1)
-                                                -- Having X coordinates of both of points the same results in Point at infinity.
-                                                (pcon PECIntermediateInfinity)
-                                            )
-                                            ( let lambdaNum = yDiff
-                                                  lambdaDenum = pgfFromElem $ pgfRecip # xDiff # fieldModulus
-                                               in plet
-                                                    (lambdaNum #* lambdaDenum)
-                                                    ( \lambda ->
-                                                        plet
-                                                            (((lambda #* lambda) #- pointX1) #- pointX2)
-                                                            ( \pointX3 ->
-                                                                let pointY3 = (lambda #* (pointX1 #- pointX3)) #- pointY1
-                                                                 in pcon $ PECIntermediatePoint pointX3 pointY3
-                                                            )
-                                                    )
-                                            )
-                                )
-                    )
-        )
+paddPoints ::
+    forall (s :: S).
+    Term s PPositive -> Term s PInteger -> Term s PECIntermediatePoint -> Term s PECIntermediatePoint -> Term s PECIntermediatePoint
+paddPoints fieldModulus curveA point1 point2 = pmatch point1 $ \case
+    -- Point at infinity is an identity for addition
+    PECIntermediateInfinity -> point2
+    PECIntermediatePoint point1X point1Y -> pmatch point2 $ \case
+        PECIntermediateInfinity -> point1
+        PECIntermediatePoint point2X point2Y ->
+            plet (point1Y #- point2Y) $ \yDiff ->
+                plet (point1X #- point2X) $ \xDiff ->
+                    pif
+                        (pgfToElem xDiff fieldModulus #== pgfZero)
+                        ( pif
+                            (pgfToElem yDiff fieldModulus #== pgfZero)
+                            -- If both points are equal, we double the first one
+                            (ppointDouble fieldModulus curveA point1)
+                            -- If both points have X = 0 but different Y, their sum is
+                            -- the point at infinity
+                            (pcon PECIntermediateInfinity)
+                        )
+                        ( plet (yDiff #* pgfFromElem (pgfRecip # xDiff # fieldModulus)) $ \lambda ->
+                            plet (((lambda #* lambda) #- point1X) #- point2X) $ \point3X ->
+                                pcon . PECIntermediatePoint point3X $ (lambda #* (point1X #- point3X)) #- point1Y
+                        )
 
 -- | @2P = R@ where @R@ is the inverse of a point at the intersection of the @P@'s tangent and the curve.
-pPointDouble :: forall (s :: S). Term s PPositive -> Term s PInteger -> Term s PECIntermediatePoint -> Term s PECIntermediatePoint
-pPointDouble fieldModulus curveA point =
-    pmatch
-        point
-        ( \case
-            PECIntermediateInfinity -> pcon PECIntermediateInfinity
-            PECIntermediatePoint pointX1 pointY1 ->
-                let lambdaNum = (pgf3 #* (pointX1 #* pointX1)) #+ punsafeCoerce curveA
-                    lambdaDenum = pgfFromElem $ pgfRecip # (pgf2 #* pointY1) # fieldModulus
-                    lambda = lambdaNum #* lambdaDenum
-                    pointX2 = (lambda #* lambda) #- (pgf2 #* pointX1)
-                    pointY2 = (lambda #* (pointX1 #- pointX2)) #- pointY1
-                 in pcon $ PECIntermediatePoint pointX2 pointY2
-        )
+ppointDouble ::
+    forall (s :: S). Term s PPositive -> Term s PInteger -> Term s PECIntermediatePoint -> Term s PECIntermediatePoint
+ppointDouble fieldModulus curveA point = pmatch point $ \case
+    PECIntermediateInfinity -> pcon PECIntermediateInfinity
+    PECIntermediatePoint pointX pointY ->
+        let lambdaNum = (pgf3 #* (pointX #* pointX)) #+ punsafeCoerce curveA
+            lambdaDen = pgfFromElem $ pgfRecip # (pgf2 #* pointY) # fieldModulus
+         in plet (lambdaNum #* lambdaDen) $ \lambda ->
+                let newPointX = (lambda #* lambda) #- (pgf2 #* pointX)
+                    newPointY = (lambda #* (pointX #- newPointX)) #- pointY
+                 in pcon . PECIntermediatePoint newPointX $ newPointY
 
 -- | A constant @2@
 pgf2 :: Term s PGFIntermediate
