@@ -7,13 +7,7 @@ import Data.Proxy (Proxy (Proxy))
 import Data.Vector.Unboxed.Sized qualified as Vector
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import GenCurve (GenCurvePoints (GenCurvePoints))
-import Grumplestiltskin.EllipticCurve (
-    PECIntermediatePoint (PECIntermediateInfinity, PECIntermediatePoint),
-    PECPoint,
-    paddPoints,
-    ppointDouble,
-    ptoPoint,
- )
+import Grumplestiltskin.EllipticCurve (PECIntermediatePoint (PECIntermediateInfinity, PECIntermediatePoint), PECPoint (PECInfinity), invPoint, paddPoints, ppointDouble, ptoPoint)
 import Plutarch.Internal.Term (Term, punsafeCoerce)
 import Plutarch.Prelude (
     PBool,
@@ -51,6 +45,7 @@ main = do
             "Case 2: properties"
             [ testProperty "paddPoints associates" propAssocAdd
             , testProperty "paddPoints commutes" propCommAdd
+            , testProperty "P - P = point at infinity" propAdditionOfNegatedPoint
             , testProperty "ppointDouble x = paddPoints x x" propDoubleAdd
             ]
         ]
@@ -98,6 +93,29 @@ propAssocAdd = forAllShrinkShow (arbitrary @(GenCurvePoints 3)) shrink show $ \(
                 let order' = punsafeCoerce order
                  in ptoPoint order' (paddPoints order' constantA p1 (paddPoints order' constantA p2 p3))
                         #== ptoPoint order' (paddPoints order' constantA (paddPoints order' constantA p1 p2) p3)
+
+propAdditionOfNegatedPoint :: Property
+propAdditionOfNegatedPoint = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $ \(GenCurvePoints order constantA _ points) ->
+    let (x1, y1) = Vector.index' points (Proxy @0)
+     in plift
+            ( precompileTerm (plam go)
+                # pconstant (fromIntegral x1)
+                # pconstant (fromIntegral y1)
+                # pconstant (fromIntegral order)
+                # pconstant (fromIntegral constantA)
+            )
+  where
+    go ::
+        forall (s :: S).
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PBool
+    go x1 y1 order constantA = plet (createPoint x1 y1) $ \p1 ->
+        let order' = punsafeCoerce order
+         in ptoPoint order' (paddPoints order' constantA p1 (invPoint p1))
+                #== pcon PECInfinity
 
 propCommAdd :: Property
 propCommAdd = forAllShrinkShow (arbitrary @(GenCurvePoints 2)) shrink show $ \(GenCurvePoints order constantA _ points) ->
