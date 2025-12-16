@@ -9,6 +9,7 @@ module Grumplestiltskin.EllipticCurve (
     paddPoints,
     ppointDouble,
     ptoPoint,
+    pscalePoint,
     PECIntermediatePoint (PECIntermediatePoint, PECIntermediateInfinity),
     PECPoint (PECPoint, PECInfinity),
 ) where
@@ -23,13 +24,23 @@ import Plutarch.Prelude (
     PInteger,
     PPositive,
     PShow,
+    pabs,
     pcon,
+    pcond,
+    pfix,
     pif,
+    plam,
+    plet,
+    pquot,
+    prem,
     (#),
+    (#$),
     (#*),
     (#+),
     (#-),
+    (#<=),
     (#==),
+    (:-->),
  )
 import Plutarch.Repr.SOP (DeriveAsSOPStruct (DeriveAsSOPStruct))
 
@@ -159,6 +170,40 @@ ppointDouble fieldModulus curveA point = pmatch point $ \case
                 let newPointX = (lambda #* lambda) #- (pgf2 #* pointX)
                     newPointY = (lambda #* (pointX #- newPointX)) #- pointY
                  in pcon . PECIntermediatePoint newPointX $ newPointY
+
+pscalePoint ::
+    forall (s :: S).
+    Term s PPositive ->
+    Term s PInteger ->
+    Term s PInteger ->
+    Term s PECIntermediatePoint ->
+    Term s PECIntermediatePoint
+pscalePoint fieldModulus curveA scaleFactor point =
+    pcond
+        [ (scaleFactor #== 0, pcon PECIntermediateInfinity)
+        , (scaleFactor #<= 0, invPoint fieldModulus (go #$ pabs # scaleFactor))
+        ]
+        (go # scaleFactor)
+  where
+    go :: Term s (PInteger :--> PECIntermediatePoint)
+    go = pfix $ \self -> plam $ \i ->
+        pif
+            (i #<= 1)
+            point
+            ( plet (self #$ pquot # i # 2) $ \below ->
+                plet (ppointDouble fieldModulus curveA below) $ \doubled ->
+                    pif
+                        ((prem # i # 2) #== 1)
+                        (paddPoints fieldModulus curveA doubled point)
+                        doubled
+            )
+
+invPoint ::
+    forall (s :: S).
+    Term s PPositive ->
+    Term s PECIntermediatePoint ->
+    Term s PECIntermediatePoint
+invPoint = _
 
 -- | A constant @2@
 pgf2 :: Term s PGFIntermediate
