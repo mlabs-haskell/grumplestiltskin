@@ -50,6 +50,7 @@ Calculators:
 - "https://andrea.corbellini.name/ecc/interactive/modk-add.html"
 
 Resources:
+- "https://www.secg.org/sec1-v2.pdf"
 - "https://rareskills.io/post/elliptic-curves-finite-fields"
 - Handbook of Elliptic and Hyperelliptic Curve Cryptography -- Henri Cohen, ...
 - "http://koclab.cs.ucsb.edu/teaching/ecc/eccPapers/Washington-ch04.pdf" (some examples and proofs)
