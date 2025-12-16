@@ -10,7 +10,7 @@ module Grumplestiltskin.EllipticCurve (
     ppointDouble,
     ptoPoint,
     pscalePoint,
-    invPoint,
+    pinvPoint,
     PECIntermediatePoint (PECIntermediatePoint, PECIntermediateInfinity),
     PECPoint (PECPoint, PECInfinity),
 ) where
@@ -31,6 +31,7 @@ import Plutarch.Prelude (
     pfix,
     pif,
     plam,
+    pnegate,
     pquot,
     prem,
     (#),
@@ -168,16 +169,15 @@ ppointDouble ::
     forall (s :: S). Term s PPositive -> Term s PInteger -> Term s PECIntermediatePoint -> Term s PECIntermediatePoint
 ppointDouble fieldModulus curveA point = pmatch point $ \case
     PECIntermediateInfinity -> pcon PECIntermediateInfinity
-    PECIntermediatePoint pointX pointY ->
+    PECIntermediatePoint pointX pointY -> plet (pgfToElem pointY fieldModulus) $ \pointYReduced ->
         pif
-            -- TODO: we're reducing the y coordinate here. Let's use that going forward.
-            (pgfToElem pointY fieldModulus #== pgfZero)
+            (pointYReduced #== pgfZero)
             (pcon PECIntermediateInfinity)
             ( let lambdaNum = (pgf3 #* (pointX #* pointX)) #+ punsafeCoerce curveA
-                  lambdaDen = pgfFromElem $ pgfRecip # (pgf2 #* pointY) # fieldModulus
+                  lambdaDen = pgfFromElem $ pgfRecip # (pgf2 #* pgfFromElem pointYReduced) # fieldModulus
                in plet (lambdaNum #* lambdaDen) $ \lambda ->
                     let newPointX = (lambda #* lambda) #- (pgf2 #* pointX)
-                        newPointY = (lambda #* (pointX #- newPointX)) #- pointY
+                        newPointY = (lambda #* (pointX #- newPointX)) #- pgfFromElem pointYReduced
                      in pcon . PECIntermediatePoint newPointX $ newPointY
             )
 
@@ -191,7 +191,7 @@ pscalePoint ::
 pscalePoint fieldModulus curveA scaleFactor point =
     pcond
         [ (scaleFactor #== 0, pcon PECIntermediateInfinity)
-        , (scaleFactor #<= 0, invPoint (go #$ pabs # scaleFactor))
+        , (scaleFactor #<= 0, pinvPoint (go #$ pabs # scaleFactor))
         ]
         (go # scaleFactor)
   where
@@ -208,17 +208,13 @@ pscalePoint fieldModulus curveA scaleFactor point =
                         doubled
             )
 
-invPoint ::
+pinvPoint ::
     forall (s :: S).
     Term s PECIntermediatePoint ->
     Term s PECIntermediatePoint
-invPoint point =
-    pmatch
-        point
-        ( \case
-            PECIntermediateInfinity -> pcon PECIntermediateInfinity
-            PECIntermediatePoint x y -> pcon $ PECIntermediatePoint x (pgfFromElem pgfZero #- y)
-        )
+pinvPoint point = pmatch point $ \case
+    PECIntermediateInfinity -> pcon PECIntermediateInfinity
+    PECIntermediatePoint x y -> pcon $ PECIntermediatePoint x (pnegate # y)
 
 -- | A constant @2@
 pgf2 :: Term s PGFIntermediate
