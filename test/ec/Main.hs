@@ -16,7 +16,8 @@ import Grumplestiltskin.EllipticCurve (
     pscalePoint,
     ptoPoint,
  )
-import Plutarch.Internal.Term (Term, punsafeCoerce)
+import Plutarch.Evaluate (evalTerm')
+import Plutarch.Internal.Term (Config (NoTracing), Term, punsafeCoerce)
 import Plutarch.Prelude (
     PBool,
     PInteger,
@@ -35,6 +36,7 @@ import Plutarch.Prelude (
     (#==),
     (:-->),
  )
+import Plutarch.Test.Golden (goldenEval, plutarchGolden)
 import Plutarch.Test.Unit (testEvalEqual)
 import Plutarch.Test.Utils (precompileTerm)
 import Test.QuickCheck (Property, arbitrary, forAllShrinkShow, shrink)
@@ -65,6 +67,15 @@ main = do
                 , adjustOption (smallerTests 2) $ testProperty "paddPoints (pscalePoint p n) (pscalePoint p m) = pscalePoint p (n + m)" propScaleAdd
                 , adjustOption (smallerTests 4) $ testProperty "pscalePoint (pscalePoint p n) m = pscalePoint p (n * m)" propScaleMul
                 ]
+        , plutarchGolden
+            "Case 3: goldens over y^2 = x^3 + 49x^2 + 9 (mod 2^127 - 1)"
+            "ec"
+            [ goldenEval "paddPoints" (paddPoints curveModulus curveA pointX pointY)
+            , goldenEval "pscalePoint" (pscalePoint curveModulus curveA 10 point)
+            , goldenEval "pinvPoint" (pinvPoint pointX)
+            , goldenEval "ppointDouble" (ppointDouble curveModulus curveA pointX)
+            , goldenEval "ptoPoint" (ptoPoint curveModulus pointX)
+            ]
         ]
   where
     mkTestCase :: Int -> (forall (s :: S). Term s PECIntermediatePoint) -> TestTree
@@ -82,6 +93,16 @@ main = do
     -- is far too few to be useful. Thus, we increase the count.
     moreTests :: QuickCheckTests -> QuickCheckTests
     moreTests = max 1000
+    point :: forall (s :: S). Term s PECIntermediatePoint
+    point = createPoint 337 6621
+    pointX :: forall (s :: S). Term s PECIntermediatePoint
+    pointX = evalTerm' NoTracing (pscalePoint curveModulus curveA (-5) point)
+    pointY :: forall (s :: S). Term s PECIntermediatePoint
+    pointY = evalTerm' NoTracing (pscalePoint curveModulus curveA 13 point)
+    curveModulus :: forall (s :: S). Term s PPositive
+    curveModulus = punsafeCoerce @_ @PInteger 170141183460469231731687303715884105727
+    curveA :: forall (s :: S). Term s PInteger
+    curveA = 49
 
 -- Properties
 
