@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               grumplestiltskin
-version:            1.0.0
+version:            1.1.0
 author:             Koz Ross <koz@mlabs.city>
 license:            Apache-2.0
 extra-source-files: README.md
@@ -56,12 +56,17 @@ common test-lang
     , grumplestiltskin
     , plutarch-testlib
     , QuickCheck
+    , quickcheck-instances
     , tasty
+    , tasty-hunit
     , tasty-quickcheck
 
 library
   import:          lang
-  exposed-modules: Grumplestiltskin.Galois
+  exposed-modules:
+    Grumplestiltskin.EllipticCurve
+    Grumplestiltskin.Galois
+
   build-depends:
     , generics-sop
     , QuickCheck
@@ -73,5 +78,15 @@ test-suite galois
   import:         test-lang
   type:           exitcode-stdio-1.0
   main-is:        Main.hs
-  build-depends:  quickcheck-instances
   hs-source-dirs: test/galois
+
+test-suite ec
+  import:         test-lang
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  other-modules:  GenCurve
+  build-depends:
+    , indexed-traversable
+    , vector-sized
+
+  hs-source-dirs: test/ec

@@ -1,10 +1,10 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
--- Note (Koz, 19/08/2025): Needed until we add some PTryFrom instances to
--- Plutarch.
-{-# OPTIONS_GHC -Wno-orphans #-}
 
--- | @since 1.0.0
+{- | Finite fields.
+
+@since 1.0.0
+-}
 module Grumplestiltskin.Galois (
     -- * Types
 
@@ -77,6 +77,7 @@ import Plutarch.Prelude (
     PNatural,
     POrd,
     PPositive,
+    PShow,
     PTryFrom (ptryFrom'),
     PlutusType,
     S,
@@ -295,6 +296,9 @@ instance PEq PGFElement
 
 -- | @since 1.0.0
 instance POrd PGFElement
+
+-- | @since wip
+instance PShow PGFElement
 
 -- | @since 1.0.0
 instance PLiftable PGFElement where
