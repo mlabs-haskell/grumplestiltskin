@@ -1,18 +1,36 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-{- | A general implementation for elliptic curves over finite field.
+{- | Elliptic curves over finite fields. The general formula for these functions
+is @y^2 = x^3 + ax + b (mod r)@, where @r@ is the field order.
 
-The general formula for these functions is: @y^2 = x^3 + a * x + b (mod r)@.
+@since 1.1.0
 -}
 module Grumplestiltskin.EllipticCurve (
+    -- * Types
+
+    --
+
+    -- ** Plutarch
+
+    --
+
+    -- *** SOP encoded
+    PECPoint (PECPoint, PECInfinity),
+    PECIntermediatePoint (PECIntermediatePoint, PECIntermediateInfinity),
+
+    -- * Functions
+
+    --
+
+    -- ** Representation change
+    ptoPoint,
+
+    -- ** Operations
     paddPoints,
     ppointDouble,
-    ptoPoint,
     pscalePoint,
     pinvPoint,
-    PECIntermediatePoint (PECIntermediatePoint, PECIntermediateInfinity),
-    PECPoint (PECPoint, PECInfinity),
 ) where
 
 import GHC.Generics (Generic)
@@ -104,35 +122,77 @@ The optimized version structures EC points as 3-tuples, which are harder to inte
 13.2 section in Handbook of Elliptic and Hyperelliptic Curve Cryptography -- Henri Cohen
 -}
 
+{- | A point on some elliptic curve. The order of the field for the @x@ and @y@
+co-ordinates of the curve point is implicit, for reasons of efficiency.
+
+@since 1.1.0
+-}
 data PECPoint (s :: S)
     = PECPoint (Term s PGFElement) (Term s PGFElement)
     | PECInfinity
-    deriving stock (Generic)
-    deriving anyclass (SOP.Generic)
+    deriving stock
+        ( -- | @since 1.1.0
+          Generic
+        )
+    deriving anyclass
+        ( -- | @since 1.1.0
+          SOP.Generic
+        , -- | @since 1.1.0
+          PEq
+        , -- | @since 1.1.0
+          PShow
+        )
     deriving
-        (PlutusType)
+        ( -- | @since 1.1.0
+          PlutusType
+        )
         via (DeriveAsSOPStruct PECPoint)
 
-instance PEq PECPoint
+{- | An intermediate computation over an elliptic curve point. This type exists
+for efficiency: thus, you want to do all your calculations in
+'PECIntermediatePoint', then convert to 'PECPoint' at the end.
 
-instance PShow PECPoint
-
+@since 1.1.0
+-}
 data PECIntermediatePoint (s :: S)
     = PECIntermediatePoint (Term s PGFIntermediate) (Term s PGFIntermediate)
     | PECIntermediateInfinity
-    deriving stock (Generic)
-    deriving anyclass (SOP.Generic)
+    deriving stock
+        ( -- | @since 1.1.0
+          Generic
+        )
+    deriving anyclass
+        ( -- | @since 1.1.0
+          SOP.Generic
+        )
     deriving
-        (PlutusType)
+        ( -- | @since 1.1.0
+          PlutusType
+        )
         via (DeriveAsSOPStruct PECIntermediatePoint)
 
-ptoPoint :: forall (s :: S). Term s PPositive -> Term s PECIntermediatePoint -> Term s PECPoint
+{- | Convert a 'PECIntermediatePoint' into a valid point on an elliptic curve,
+based on a finite field of order specified by the 'PPositive' argument. Said
+argument should be prime, although 'ptoPoint' doesn't require this.
+
+@since 1.1.0
+-}
+ptoPoint ::
+    forall (s :: S).
+    Term s PPositive -> Term s PECIntermediatePoint -> Term s PECPoint
 ptoPoint fieldModulus p = pmatch p $ \case
     PECIntermediateInfinity -> pcon PECInfinity
     PECIntermediatePoint x y -> pcon $ PECPoint (pgfToElem x fieldModulus) (pgfToElem y fieldModulus)
 
-{- | @P + Q = R@ where @R@ is the inverse of a point on the intersection of the curve and the line defined by @P@ and @Q@.
-In case @P == Q@, we calculate the @2P@.
+{- | Add two elliptic curve points, where both points are based on a finite
+field of order specified by the 'PPositive' argument, with the curve having
+an @a@ constant specified by the 'PInteger' argument.
+
+More precisely, adding points @P@ and @Q@ produces the point @R@ such that
+@R@ is the inverse of a point on the intersection of the curve and the line
+through @P@ and @Q@. If @P = Q@, we instead calculate @2P@.
+
+@since 1.1.0
 -}
 paddPoints ::
     forall (s :: S).
@@ -168,9 +228,22 @@ paddPoints fieldModulus curveA point1 point2 = pmatch point1 $ \case
                                 pcon . PECIntermediatePoint point3X $ (lambda #* (point1X #- point3X)) #- point1Y
                         )
 
--- | @2P = R@ where @R@ is the inverse of a point at the intersection of the @P@'s tangent and the curve.
+{- | Double an elliptic curve point, where the point is based on a finite field
+of order specified by the 'PPositive' argument, with the curve having an @a@
+constant specified by the 'PInteger' argument.
+
+More precisely, for a point @P@, this calculates @2P = R@ such that @R@ is
+the inverse of a point at the intersection of a tangent to @P@ and the curve
+itself.
+
+@since 1.1.0
+-}
 ppointDouble ::
-    forall (s :: S). Term s PPositive -> Term s PInteger -> Term s PECIntermediatePoint -> Term s PECIntermediatePoint
+    forall (s :: S).
+    Term s PPositive ->
+    Term s PInteger ->
+    Term s PECIntermediatePoint ->
+    Term s PECIntermediatePoint
 ppointDouble fieldModulus curveA point = pmatch point $ \case
     PECIntermediateInfinity -> pcon PECIntermediateInfinity
     PECIntermediatePoint pointX pointY -> plet (pgfToElem pointY fieldModulus) $ \pointYReduced ->
@@ -190,6 +263,25 @@ ppointDouble fieldModulus curveA point = pmatch point $ \case
                      in pcon . PECIntermediatePoint newPointX $ newPointY
             )
 
+{- | @'pscalePoint' fieldOrder curveA scaleFactor p@ performs a scalar
+multiplication of @p@ by @scaleFactor@, assuming that @p@ is defined over a
+finite field of order @fieldOrder@, and that @p@'s curve has an @a@ constant
+of @curveA@. In particular:
+
+* @'pscalePoint' fieldOrder curveA 0 p@ yields the point at infinity;
+* @'pscalePoint' fieldOrder curveA 1 p@ yields @p@;
+* @'pscalePoint' fieldOrder curveA (-1) p@ yields @'pinvPoint' p@; and
+* @'pscalePoint' fieldOrder curveA 2 p@ yields @'ppointDouble' fieldOrder curveA p@.
+
+Furthermore, 'pscalePoint' obeys the following laws:
+
+* @'pscalePoint' fieldOrder curveA (-n) = 'pinvPoint' ('pscalePoint' fieldOrder curveA n)@
+* @'paddPoints' fo cA ('pscalePoint' fo cA n p) ('pscalePoint' fo cA m p) =
+   'pscalePoint' fo cA (n #+ m) p@
+* @'pscalePoint' fo cA m ('pscalePoint' fo cA n p) = 'pscalePoint' fo cA (n #* m) p@
+
+@since 1.1.0
+-}
 pscalePoint ::
     forall (s :: S).
     Term s PPositive ->
@@ -217,6 +309,11 @@ pscalePoint fieldModulus curveA scaleFactor point =
                         doubled
             )
 
+{- | Constructs the inverse of a point, such that for any @p@, @paddPoints
+fieldOrder curveA p (pinvPoint p)@ is the point at infinity.
+
+@since 1.1.0
+-}
 pinvPoint ::
     forall (s :: S).
     Term s PECIntermediatePoint ->
