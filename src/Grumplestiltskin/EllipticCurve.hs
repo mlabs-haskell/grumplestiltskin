@@ -159,7 +159,11 @@ paddPoints fieldModulus curveA point1 point2 = pmatch point1 $ \case
                             -- the point at infinity
                             (pcon PECIntermediateInfinity)
                         )
-                        ( plet (yDiff #* pgfFromElem (pgfRecip # xDiff # fieldModulus)) $ \lambda ->
+                        ( -- Note (Koz, 18/12/2025): We force a reduction here,
+                          -- as `lambda` is likely to be a huge term, and will
+                          -- only get huger later. This forced reduction
+                          -- massively improves exunit costs.
+                          plet (preduce fieldModulus (yDiff #* pgfFromElem (pgfRecip # xDiff # fieldModulus))) $ \lambda ->
                             plet (((lambda #* lambda) #- point1X) #- point2X) $ \point3X ->
                                 pcon . PECIntermediatePoint point3X $ (lambda #* (point1X #- point3X)) #- point1Y
                         )
@@ -175,7 +179,12 @@ ppointDouble fieldModulus curveA point = pmatch point $ \case
             (pcon PECIntermediateInfinity)
             ( let lambdaNum = (pgf3 #* (pointX #* pointX)) #+ punsafeCoerce curveA
                   lambdaDen = pgfFromElem $ pgfRecip # (pgf2 #* pgfFromElem pointYReduced) # fieldModulus
-               in plet (lambdaNum #* lambdaDen) $ \lambda ->
+               in -- Note (Koz, 18/12/2025): We force a reduction here, as
+                  -- `lambda` is likely to be a huge term, which only gets huger
+                  -- later. This massively reduces the cost in exunits for
+                  -- doubling operations, especially when scaling becomes
+                  -- involved.
+                  plet (preduce fieldModulus (lambdaNum #* lambdaDen)) $ \lambda ->
                     let newPointX = (lambda #* lambda) #- (pgf2 #* pointX)
                         newPointY = (lambda #* (pointX #- newPointX)) #- pgfFromElem pointYReduced
                      in pcon . PECIntermediatePoint newPointX $ newPointY
@@ -216,10 +225,16 @@ pinvPoint point = pmatch point $ \case
     PECIntermediateInfinity -> pcon PECIntermediateInfinity
     PECIntermediatePoint x y -> pcon $ PECIntermediatePoint x (pnegate # y)
 
--- | A constant @2@
+-- Helpers
+
+-- The constant @2@
 pgf2 :: Term s PGFIntermediate
 pgf2 = punsafeCoerce (2 :: Term s PInteger)
 
--- | A constant @3@
+-- The constant @3@
 pgf3 :: Term s PGFIntermediate
 pgf3 = punsafeCoerce (3 :: Term s PInteger)
+
+-- Force a reduction by field modulus
+preduce :: forall (s :: S). Term s PPositive -> Term s PGFIntermediate -> Term s PGFIntermediate
+preduce modulus p = pgfFromElem $ pgfToElem p modulus

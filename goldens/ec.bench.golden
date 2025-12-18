@@ -1,5 +1,5 @@
-paddPoints {"exBudgetCPU":2919814563,"exBudgetMemory":32993,"scriptSizeBytes":46287}
-pscalePoint {"exBudgetCPU":71074459,"exBudgetMemory":57852,"scriptSizeBytes":760}
-pinvPoint {"exBudgetCPU":401408,"exBudgetMemory":1807,"scriptSizeBytes":1628}
-ppointDouble {"exBudgetCPU":51345678,"exBudgetMemory":13309,"scriptSizeBytes":1738}
-ptoPoint {"exBudgetCPU":2110393,"exBudgetMemory":2704,"scriptSizeBytes":1655}
+paddPoints {"exBudgetCPU":4997325,"exBudgetMemory":10861,"scriptSizeBytes":710}
+pscalePoint {"exBudgetCPU":22614637,"exBudgetMemory":55824,"scriptSizeBytes":783}
+pinvPoint {"exBudgetCPU":359408,"exBudgetMemory":1707,"scriptSizeBytes":116}
+ppointDouble {"exBudgetCPU":4816986,"exBudgetMemory":10794,"scriptSizeBytes":230}
+ptoPoint {"exBudgetCPU":715630,"exBudgetMemory":2704,"scriptSizeBytes":143}
