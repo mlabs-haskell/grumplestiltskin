@@ -10,6 +10,7 @@ import GenCurve (GenCurvePoints (GenCurvePoints))
 import Grumplestiltskin.EllipticCurve (
     PECIntermediatePoint (PECIntermediateInfinity, PECIntermediatePoint),
     PECPoint (PECInfinity),
+    PECPointData,
     paddPoints,
     pinvPoint,
     ppointDouble,
@@ -19,7 +20,9 @@ import Grumplestiltskin.EllipticCurve (
 import Plutarch.Evaluate (evalTerm')
 import Plutarch.Internal.Term (Config (NoTracing), Term, punsafeCoerce)
 import Plutarch.Prelude (
+    PAsData,
     PBool,
+    PData,
     PInteger,
     PPositive,
     S,
@@ -30,6 +33,7 @@ import Plutarch.Prelude (
     plam,
     plet,
     plift,
+    ptryFrom,
     (#),
     (#*),
     (#+),
@@ -39,6 +43,7 @@ import Plutarch.Prelude (
 import Plutarch.Test.Golden (goldenEval, plutarchGolden)
 import Plutarch.Test.Unit (testEvalEqual)
 import Plutarch.Test.Utils (precompileTerm)
+import PlutusCore.Data qualified as Plutus
 import Test.QuickCheck (Property, arbitrary, forAllShrinkShow, shrink)
 import Test.Tasty (TestTree, adjustOption, defaultMain, testGroup)
 import Test.Tasty.QuickCheck (QuickCheckMaxSize, QuickCheckTests, testProperty)
@@ -68,13 +73,14 @@ main = do
                 , adjustOption (smallerTests 4) $ testProperty "pscalePoint (pscalePoint p n) m = pscalePoint p (n * m)" propScaleMul
                 ]
         , plutarchGolden
-            "Case 3: goldens over y^2 = x^3 + 49x^2 + 9 (mod 2^127 - 1)"
+            "Case 3: goldens over y^2 = x^3 + 49x^2 + 7 (mod 2^127 - 1)"
             "ec"
             [ goldenEval "paddPoints" (paddPoints curveModulus curveA pointX pointY)
             , goldenEval "pscalePoint" (pscalePoint curveModulus curveA 10 point)
             , goldenEval "pinvPoint" (pinvPoint pointX)
             , goldenEval "ppointDouble" (ppointDouble curveModulus curveA pointX)
             , goldenEval "ptoPoint" (ptoPoint curveModulus pointX)
+            , goldenEval "ptryFrom" (ptryFrom @(PAsData PECPointData) pointAsData fst)
             ]
         ]
   where
@@ -103,6 +109,18 @@ main = do
     curveModulus = punsafeCoerce @_ @PInteger 170141183460469231731687303715884105727
     curveA :: forall (s :: S). Term s PInteger
     curveA = 49
+    pointAsData :: forall (s :: S). Term s PData
+    pointAsData =
+        pconstant
+            ( Plutus.Constr
+                1
+                [ Plutus.I 337
+                , Plutus.I 6621
+                , Plutus.I 170141183460469231731687303715884105727
+                , Plutus.I 49
+                , Plutus.I 7
+                ]
+            )
 
 -- Properties
 

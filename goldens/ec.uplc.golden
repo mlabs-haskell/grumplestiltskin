@@ -538,3 +538,124 @@ ptoPoint program
                (modInteger !2 !3))
         , (constr 1 []) ])
      170141183460469231731687303715884105727)
+ptryFrom program
+  1.1.0
+  ((\!0 ->
+      (\!0 ->
+         (\!0 ->
+            (\!0 ->
+               (\!0 ->
+                  case
+                    !1
+                    [ (\!0 !0 ->
+                         case
+                           !2
+                           [ !7
+                           , (case
+                                !1
+                                [ (\!0 !0 ->
+                                     (\!0 ->
+                                        case
+                                          !2
+                                          [ (\!0 !0 ->
+                                               (\!0 ->
+                                                  case
+                                                    !2
+                                                    [ (\!0 !0 ->
+                                                         (\!0 ->
+                                                            case
+                                                              !2
+                                                              [ (\!0 !0 ->
+                                                                   (\!0 ->
+                                                                      (\!0 ->
+                                                                         (\!0 ->
+                                                                            (\!0 ->
+                                                                               (\!0 ->
+                                                                                  (\!0 ->
+                                                                                     case
+                                                                                       (lessThanEqualsInteger
+                                                                                          !3
+                                                                                          !2)
+                                                                                       [ (case
+                                                                                            (lessThanEqualsInteger
+                                                                                               !3
+                                                                                               !1)
+                                                                                            [ (case
+                                                                                                 (equalsInteger
+                                                                                                    (modInteger
+                                                                                                       (multiplyInteger
+                                                                                                          !1
+                                                                                                          !1)
+                                                                                                       !3)
+                                                                                                    (modInteger
+                                                                                                       (addInteger
+                                                                                                          (multiplyInteger
+                                                                                                             !2
+                                                                                                             (multiplyInteger
+                                                                                                                !2
+                                                                                                                !2))
+                                                                                                          (addInteger
+                                                                                                             (multiplyInteger
+                                                                                                                (unIData
+                                                                                                                   !8)
+                                                                                                                (multiplyInteger
+                                                                                                                   !2
+                                                                                                                   !2))
+                                                                                                             (unIData
+                                                                                                                !5)))
+                                                                                                       !3))
+                                                                                                 [ (force
+                                                                                                      (!23
+                                                                                                         "PTryFrom PECPointData: Specified point not on specified curve"
+                                                                                                         (delay
+                                                                                                            error)))
+                                                                                                 , !24 ])
+                                                                                            , (force
+                                                                                                 (!23
+                                                                                                    "PTryFrom PECPointData: Unsuitable Y coordinate for given field order"
+                                                                                                    (delay
+                                                                                                       error))) ])
+                                                                                       , (force
+                                                                                            (!23
+                                                                                               "PTryFrom PECPointData: Unsuitable X coordinate for given field order"
+                                                                                               (delay
+                                                                                                  error))) ])
+                                                                                    (unIData
+                                                                                       (iData
+                                                                                          (!20
+                                                                                             !11))))
+                                                                                 (unIData
+                                                                                    (iData
+                                                                                       (!19
+                                                                                          !13))))
+                                                                              (unIData
+                                                                                 (iData
+                                                                                    (case
+                                                                                       (lessThanEqualsInteger
+                                                                                          !6
+                                                                                          0)
+                                                                                       [ !6
+                                                                                       , (force
+                                                                                            (!20
+                                                                                               "ptryPositive: building with non positive"
+                                                                                               (delay
+                                                                                                  error))) ]))))
+                                                                           (unIData
+                                                                              !1))
+                                                                        (force
+                                                                           headList
+                                                                           !2))
+                                                                     (unIData
+                                                                        !2)) ])
+                                                           (unIData !2)) ])
+                                                 (unIData !2)) ])
+                                       (unIData !2)) ]) ]) ])
+                 (unConstrData !4))
+              (\!0 ->
+                 case
+                   (lessThanEqualsInteger !1 -1)
+                   [!1, (force (!3 !2 (delay error)))]))
+           "ptryNatural: building with negative")
+        (force trace))
+     (Constr 1
+        [I 337, I 6621, I 170141183460469231731687303715884105727, I 49, I 7]))

@@ -88,6 +88,7 @@ test-suite ec
   other-modules:  GenCurve
   build-depends:
     , indexed-traversable
+    , plutus-core
     , vector-sized
 
   hs-source-dirs: test/ec
