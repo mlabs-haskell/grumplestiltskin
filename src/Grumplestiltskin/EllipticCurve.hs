@@ -41,6 +41,8 @@ import Plutarch.Internal.Term (S, Term, plet, punsafeCoerce)
 import Plutarch.Prelude (
     DeriveAsDataStruct (DeriveAsDataStruct),
     PAsData,
+    PBool,
+    PBuiltinList,
     PBuiltinPair (PBuiltinPair),
     PData,
     PEq,
@@ -49,23 +51,24 @@ import Plutarch.Prelude (
     PNatural,
     PPositive,
     PShow,
+    PString,
     PTryFrom (ptryFrom'),
     pabs,
     pasConstr,
     pcon,
     pcond,
-    perror,
     pfix,
     pfromData,
     pheadBuiltin,
     pheadTailBuiltin,
     pif,
     plam,
+    pmod,
     pnegate,
     popaque,
     pquot,
     prem,
-    ptraceInfo,
+    ptraceInfoError,
     ptryFrom,
     pupcast,
     runTermCont,
@@ -146,7 +149,7 @@ of:
 
 * The point's @x@ and @y@ co-ordinates, as elements of some finite field;
 * The order of the field used to define those co-ordinates; and
-* The curve's @a@ constant.
+* The curve's @A@ and @B@ constants.
 
 This type is primarily designed as an exchange format (such as for use in
 datums); to do any work with such points, we recommend first converting to
@@ -160,6 +163,7 @@ data PECPointData (s :: S)
         (Term s (PAsData PNatural))
         (Term s (PAsData PNatural))
         (Term s (PAsData PPositive))
+        (Term s (PAsData PInteger))
         (Term s (PAsData PInteger))
     deriving stock
         ( -- | @since 1.1.0
@@ -175,9 +179,12 @@ data PECPointData (s :: S)
 -- | @since 1.1.0
 deriving via (DeriveAsDataStruct PECPointData) instance PlutusType PECPointData
 
-{- | This instance does (some) validation. Specifically, it will check
-whether the @x@ and @y@ coordinates (the two 'PNatural') fields are smaller
-than the field order (the 'PPositive').
+{- | This instance validates. Specifically, it will check the following:
+
+  1. Whether the @x@ and @y@ coordinates of the provided point are smaller than
+     the field order; and
+  2. Whether the point @(x, y)@ is on the curve as specified by the field
+     order and the @A@ and @B@ constants.
 
 @since 1.1.0
 -}
@@ -191,24 +198,52 @@ instance PTryFrom PData (PAsData PECPointData) where
                     [ -- Point at infinity case
                       popaque opq
                     , -- Actual point case
-                      popaque
-                        ( pheadTailBuiltin fields $ \x rest1 ->
-                            pheadTailBuiltin rest1 $ \y rest2 ->
-                                pheadTailBuiltin rest2 $ \fieldOrder rest3 ->
-                                    plet (pheadBuiltin # rest3) $ \curveA ->
-                                        ptryFrom @(PAsData PNatural) x $ \(x', _) ->
-                                            ptryFrom @(PAsData PNatural) y $ \(y', _) ->
-                                                ptryFrom @(PAsData PPositive) fieldOrder $ \(fieldOrder', _) ->
-                                                    ptryFrom @(PAsData PInteger) curveA $ \(_, _) ->
-                                                        plet (pupcast @PInteger (pfromData fieldOrder')) $ \decodedFieldOrder ->
-                                                            pcond
-                                                                [ (pupcast (pfromData x') #>= decodedFieldOrder, ptraceInfo "PTryFrom PECPointData: unsuitable x coordinate for given field order" perror)
-                                                                , (pupcast (pfromData y') #>= decodedFieldOrder, ptraceInfo "PTryFrom PECPointData: unsuitable y coordinate for given field order" perror)
-                                                                ]
-                                                                opq
-                        )
+                      popaque (go opq fields)
                     ]
         pure (punsafeCoerce res, ())
+      where
+        go :: forall (s :: S). Term s PData -> Term s (PBuiltinList PData) -> Term s PData
+        go whole fields =
+            -- Disassemble and decode all five components in order
+            pheadTailBuiltin fields $ \x rest1 ->
+                ptryFrom @(PAsData PNatural) x $ \(x', _) ->
+                    pheadTailBuiltin rest1 $ \y rest2 ->
+                        ptryFrom @(PAsData PNatural) y $ \(y', _) ->
+                            pheadTailBuiltin rest2 $ \fieldOrder rest3 ->
+                                ptryFrom @(PAsData PPositive) fieldOrder $ \(fieldOrder', _) ->
+                                    pheadTailBuiltin rest3 $ \curveA rest4 ->
+                                        ptryFrom @(PAsData PInteger) curveA $ \(curveA', _) ->
+                                            plet (pheadBuiltin # rest4) $ \curveB ->
+                                                ptryFrom @(PAsData PInteger) curveB $ \(curveB', _) ->
+                                                    -- We will need the field order and `x` and `y` a
+                                                    -- bunch.
+                                                    plet (pfromData fieldOrder') $ \decodedFieldOrder ->
+                                                        plet (pfromData x') $ \decodedX ->
+                                                            plet (pfromData y') $ \decodedY ->
+                                                                pcond
+                                                                    [ (pupcast @PInteger decodedX #>= pupcast decodedFieldOrder, ptraceInfoError badX)
+                                                                    , (pupcast @PInteger decodedY #>= pupcast decodedFieldOrder, ptraceInfoError badY)
+                                                                    , (ponCurve decodedX decodedY decodedFieldOrder (pfromData curveA') (pfromData curveB'), whole)
+                                                                    ]
+                                                                    (ptraceInfoError notOnCurve)
+        badX :: forall (s :: S). Term s PString
+        badX = "PTryFrom PECPointData: Unsuitable X coordinate for given field order"
+        badY :: forall (s :: S). Term s PString
+        badY = "PTryFrom PECPointData: Unsuitable Y coordinate for given field order"
+        notOnCurve :: forall (s :: S). Term s PString
+        notOnCurve = "PTryFrom PECPointData: Specified point not on specified curve"
+        ponCurve ::
+            forall (s :: S).
+            Term s PNatural ->
+            Term s PNatural ->
+            Term s PPositive ->
+            Term s PInteger ->
+            Term s PInteger ->
+            Term s PBool
+        ponCurve x y fieldOrder curveA curveB =
+            let fieldOrder' = pupcast @PInteger fieldOrder
+                rhs = pupcast (x #* (x #* x)) #+ ((curveA #* pupcast x) #+ curveB)
+             in (pmod # pupcast (y #* y) # fieldOrder') #== (pmod # rhs # fieldOrder')
 
 {- | A point on some elliptic curve. The order of the field for the @x@ and @y@
 co-ordinates of the curve point is implicit, for reasons of efficiency.
