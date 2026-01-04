@@ -79,3 +79,46 @@ pgfToElem not reduced program
   (modInteger
      4400099391018015426095697430330140498424259417294341433499388192300698926316124
      57896044618658097711785492504343953926634992332820282019728792003956564819949)
+ptryFrom program
+  1.1.0
+  ((\!0 ->
+      (\!0 ->
+         (\!0 ->
+            (\!0 ->
+               (\!0 ->
+                  (\!0 ->
+                     (\!0 ->
+                        (\!0 ->
+                           (\!0 ->
+                              (\!0 ->
+                                 case
+                                   (lessThanInteger
+                                      (unIData (iData (!4 !2)))
+                                      (unIData (iData (!7 !1))))
+                                   [ (force
+                                        (!8
+                                           "PTryFrom PGFElementData: unsuitable element for given field order"
+                                           (delay error)))
+                                   , (listData
+                                        (!6
+                                           (iData (!4 !2))
+                                           (!6 (iData (!7 !1)) []))) ])
+                                (unIData (!9 (force tailList !2))))
+                             (unIData (!8 !1)))
+                          (unListData
+                             (List
+                                [ I 57896044618658097711785492504343953926634992332820282019728792003956564819948
+                                , I 57896044618658097711785492504343953926634992332820282019728792003956564819949 ])))
+                       (\!0 ->
+                          case
+                            (lessThanEqualsInteger !1 -1)
+                            [!1, (force (!5 !2 (delay error)))]))
+                    "ptryNatural: building with negative")
+                 (force mkCons))
+              (\!0 ->
+                 case
+                   (lessThanEqualsInteger !1 0)
+                   [!1, (force (!2 !3 (delay error)))]))
+           (force trace))
+        "ptryPositive: building with non positive")
+     (force headList))

@@ -15,3 +15,4 @@ pscaleInteger positive {"exBudgetCPU":171053,"exBudgetMemory":602,"scriptSizeByt
 pscaleInteger negative {"exBudgetCPU":336261,"exBudgetMemory":1004,"scriptSizeBytes":18}
 pgfToElem reduced {"exBudgetCPU":165948,"exBudgetMemory":604,"scriptSizeBytes":49}
 pgfToElem not reduced {"exBudgetCPU":239108,"exBudgetMemory":604,"scriptSizeBytes":85}
+ptryFrom {"exBudgetCPU":2595005,"exBudgetMemory":11685,"scriptSizeBytes":334}
