@@ -9,11 +9,10 @@ is @y^2 = x^3 + ax + b (mod r)@, where @r@ is the field order.
 module Grumplestiltskin.EllipticCurve (
     -- * Types
 
-    --
-
     -- ** Plutarch
 
-    --
+    -- *** @Data@ encoded
+    PECPointData,
 
     -- *** SOP encoded
     PECPoint (PECPoint, PECInfinity),
@@ -36,22 +35,41 @@ module Grumplestiltskin.EllipticCurve (
 import GHC.Generics (Generic)
 import Generics.SOP qualified as SOP
 import Grumplestiltskin.Galois (PGFElement, PGFIntermediate, pgfFromElem, pgfRecip, pgfToElem, pgfZero)
+import Plutarch.Internal.Case (punsafeCase)
 import Plutarch.Internal.PlutusType (PlutusType, pmatch)
 import Plutarch.Internal.Term (S, Term, plet, punsafeCoerce)
 import Plutarch.Prelude (
+    DeriveAsDataStruct (DeriveAsDataStruct),
+    PAsData,
+    PBuiltinPair (PBuiltinPair),
+    PData,
     PEq,
     PInteger,
+    PIsData,
+    PNatural,
     PPositive,
     PShow,
+    PTryFrom (ptryFrom'),
     pabs,
+    pasConstr,
     pcon,
     pcond,
+    perror,
     pfix,
+    pfromData,
+    pheadBuiltin,
+    pheadTailBuiltin,
     pif,
     plam,
     pnegate,
+    popaque,
     pquot,
     prem,
+    ptraceInfo,
+    ptryFrom,
+    pupcast,
+    runTermCont,
+    tcont,
     (#),
     (#$),
     (#*),
@@ -59,6 +77,7 @@ import Plutarch.Prelude (
     (#-),
     (#<=),
     (#==),
+    (#>=),
     (:-->),
  )
 import Plutarch.Repr.SOP (DeriveAsSOPStruct (DeriveAsSOPStruct))
@@ -121,6 +140,75 @@ The optimized version structures EC points as 3-tuples, which are harder to inte
 
 13.2 section in Handbook of Elliptic and Hyperelliptic Curve Cryptography -- Henri Cohen
 -}
+
+{- | @Data@-encoded point on some elliptic curve, represented as a combination
+of:
+
+* The point's @x@ and @y@ co-ordinates, as elements of some finite field;
+* The order of the field used to define those co-ordinates; and
+* The curve's @a@ constant.
+
+This type is primarily designed as an exchange format (such as for use in
+datums); to do any work with such points, we recommend first converting to
+'PECPoint' using 'pecFromData'.
+
+@since 1.1.0
+-}
+data PECPointData (s :: S)
+    = PECInfinityData
+    | PECPointData
+        (Term s (PAsData PNatural))
+        (Term s (PAsData PNatural))
+        (Term s (PAsData PPositive))
+        (Term s (PAsData PInteger))
+    deriving stock
+        ( -- | @since 1.1.0
+          Generic
+        )
+    deriving anyclass
+        ( -- | @since 1.1.0
+          SOP.Generic
+        , -- | @since 1.1.0
+          PIsData
+        )
+
+-- | @since 1.1.0
+deriving via (DeriveAsDataStruct PECPointData) instance PlutusType PECPointData
+
+{- | This instance does (some) validation. Specifically, it will check
+whether the @x@ and @y@ coordinates (the two 'PNatural') fields are smaller
+than the field order (the 'PPositive').
+
+@since 1.1.0
+-}
+instance PTryFrom PData (PAsData PECPointData) where
+    ptryFrom' opq = runTermCont $ do
+        p <- tcont $ plet (pasConstr # opq)
+        PBuiltinPair tag fields <- tcont (pmatch p)
+        let res =
+                punsafeCase
+                    tag
+                    [ -- Point at infinity case
+                      popaque opq
+                    , -- Actual point case
+                      popaque
+                        ( pheadTailBuiltin fields $ \x rest1 ->
+                            pheadTailBuiltin rest1 $ \y rest2 ->
+                                pheadTailBuiltin rest2 $ \fieldOrder rest3 ->
+                                    plet (pheadBuiltin # rest3) $ \curveA ->
+                                        ptryFrom @(PAsData PNatural) x $ \(x', _) ->
+                                            ptryFrom @(PAsData PNatural) y $ \(y', _) ->
+                                                ptryFrom @(PAsData PPositive) fieldOrder $ \(fieldOrder', _) ->
+                                                    ptryFrom @(PAsData PInteger) curveA $ \(_, _) ->
+                                                        plet (pupcast @PInteger (pfromData fieldOrder')) $ \decodedFieldOrder ->
+                                                            pcond
+                                                                [ (pupcast (pfromData x') #>= decodedFieldOrder, ptraceInfo "PTryFrom PECPointData: unsuitable x coordinate for given field order" perror)
+                                                                , (pupcast (pfromData y') #>= decodedFieldOrder, ptraceInfo "PTryFrom PECPointData: unsuitable y coordinate for given field order" perror)
+                                                                ]
+                                                                opq
+                        )
+                    ]
+        pure (punsafeCoerce res, ())
 
 {- | A point on some elliptic curve. The order of the field for the @x@ and @y@
 co-ordinates of the curve point is implicit, for reasons of efficiency.
