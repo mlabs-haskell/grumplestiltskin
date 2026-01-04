@@ -86,24 +86,20 @@ import Plutarch.Prelude (
     pcon,
     pconstant,
     pdata,
-    perror,
     pfromData,
     pheadBuiltin,
+    pheadTailBuiltin,
     phoistAcyclic,
     pif,
     plam,
     plet,
     pmatch,
     pmod,
-    ptailBuiltin,
-    ptraceInfo,
+    ptraceInfoError,
     ptryFrom,
     pupcast,
-    runTermCont,
-    tcont,
     (#),
-    (#$),
-    (#<),
+    (#>=),
     (:-->),
  )
 import Plutarch.Repr.Data (DeriveAsDataRec (DeriveAsDataRec))
@@ -145,16 +141,14 @@ the 'PNatural' field is strictly less than the 'PPositive' field.
 @since 1.0.0
 -}
 instance PTryFrom PData (PAsData PGFElementData) where
-    ptryFrom' opq = runTermCont $ do
-        ell <- tcont $ plet (pasList # opq)
-        (x, _) <- tcont $ ptryFrom (pheadBuiltin # ell)
-        (b, _) <- tcont $ ptryFrom (pheadBuiltin #$ ptailBuiltin # ell)
-        res <- tcont $ \k ->
-            pif
-                (pupcast (pfromData x) #< pupcast @PInteger (pfromData b))
-                (k . pdata . pcon . PGFElementData x $ b)
-                (ptraceInfo "PTryFrom PGFElementData: unsuitable element for given field order" perror)
-        pure (res, ())
+    ptryFrom' opq k = plet (pasList # opq) $ \ell ->
+        pheadTailBuiltin ell $ \x' rest ->
+            ptryFrom @(PAsData PNatural) x' $ \(x, _) ->
+                ptryFrom @(PAsData PPositive) (pheadBuiltin # rest) $ \(b, _) ->
+                    pif
+                        (pupcast (pfromData x) #>= pupcast @PInteger (pfromData b))
+                        (ptraceInfoError "PTryFrom PGFElementData: unsuitable element for given field order")
+                        (k (punsafeCoerce opq, ()))
 
 {- | Convert a @Data@-represented Galois field element to its SOP-represented
 equivalent.
