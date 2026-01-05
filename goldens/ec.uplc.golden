@@ -1,4 +1,4 @@
-paddPoints program
+pecAdd program
   1.1.0
   ((\!0 ->
       (\!0 ->
@@ -98,7 +98,7 @@ paddPoints program
            (\!0 !0 -> case (constr 0 [!2, (!3 1), !1]) [expModInteger]))
         (\!0 -> subtractInteger 0 !1))
      170141183460469231731687303715884105727)
-pscalePoint program
+pecScale program
   1.1.0
   ((\!0 ->
       (\!0 ->
@@ -477,7 +477,7 @@ pscalePoint program
            337)
         6621)
      (\!0 -> subtractInteger 0 !1))
-pinvPoint program
+pecInvert program
   1.1.0
   (case
      (constr 0
@@ -485,7 +485,7 @@ pinvPoint program
         , 469804121359494561861450907209873324377612583024827483137922516532044122433797665094491770498620572423515964892089 ])
      [ (\!0 !0 -> (\!0 -> constr 0 [!3, !1]) (subtractInteger 0 !1))
      , (constr 1 []) ])
-ppointDouble program
+pecDouble program
   1.1.0
   ((\!0 ->
       case
@@ -545,28 +545,28 @@ ptryFrom program
          (\!0 ->
             (\!0 ->
                (\!0 ->
-                  case
-                    !1
-                    [ (\!0 !0 ->
-                         case
-                           !2
-                           [ !7
-                           , (case
-                                !1
-                                [ (\!0 !0 ->
-                                     (\!0 ->
-                                        case
-                                          !2
-                                          [ (\!0 !0 ->
-                                               (\!0 ->
-                                                  case
-                                                    !2
-                                                    [ (\!0 !0 ->
-                                                         (\!0 ->
-                                                            case
-                                                              !2
-                                                              [ (\!0 !0 ->
-                                                                   (\!0 ->
+                  (\!0 ->
+                     case
+                       (unConstrData !3)
+                       [ (\!0 !0 ->
+                            case
+                              !1
+                              [ (\!0 !0 ->
+                                   (\!0 ->
+                                      case
+                                        !2
+                                        [ (\!0 !0 ->
+                                             (\!0 ->
+                                                case
+                                                  !2
+                                                  [ (\!0 !0 ->
+                                                       (\!0 ->
+                                                          case
+                                                            !11
+                                                            [ !14
+                                                            , (case
+                                                                 !2
+                                                                 [ (\!0 !0 ->
                                                                       (\!0 ->
                                                                          (\!0 ->
                                                                             (\!0 ->
@@ -574,11 +574,17 @@ ptryFrom program
                                                                                   (\!0 ->
                                                                                      case
                                                                                        (lessThanEqualsInteger
-                                                                                          !3
+                                                                                          (unIData
+                                                                                             (iData
+                                                                                                (!19
+                                                                                                   !14)))
                                                                                           !2)
                                                                                        [ (case
                                                                                             (lessThanEqualsInteger
-                                                                                               !3
+                                                                                               (unIData
+                                                                                                  (iData
+                                                                                                     (!19
+                                                                                                        !14)))
                                                                                                !1)
                                                                                             [ (case
                                                                                                  ((\!0 ->
@@ -587,7 +593,10 @@ ptryFrom program
                                                                                                           (multiplyInteger
                                                                                                              !2
                                                                                                              !2)
-                                                                                                          !4)
+                                                                                                          (unIData
+                                                                                                             (iData
+                                                                                                                (!20
+                                                                                                                   !15))))
                                                                                                        (modInteger
                                                                                                           (addInteger
                                                                                                              (multiplyInteger
@@ -596,11 +605,14 @@ ptryFrom program
                                                                                                              (addInteger
                                                                                                                 (multiplyInteger
                                                                                                                    (unIData
-                                                                                                                      !9)
+                                                                                                                      !14)
                                                                                                                    !1)
                                                                                                                 (unIData
-                                                                                                                   !6)))
-                                                                                                          !4))
+                                                                                                                   !11)))
+                                                                                                          (unIData
+                                                                                                             (iData
+                                                                                                                (!20
+                                                                                                                   !15)))))
                                                                                                     (multiplyInteger
                                                                                                        !2
                                                                                                        !2))
@@ -609,7 +621,7 @@ ptryFrom program
                                                                                                          "PTryFrom PECPointData: Specified point not on specified curve"
                                                                                                          (delay
                                                                                                             error)))
-                                                                                                 , !24 ])
+                                                                                                 , !21 ])
                                                                                             , (force
                                                                                                  (!23
                                                                                                     "PTryFrom PECPointData: Unsuitable Y coordinate for given field order"
@@ -622,40 +634,36 @@ ptryFrom program
                                                                                                   error))) ])
                                                                                     (unIData
                                                                                        (iData
-                                                                                          (!20
-                                                                                             !11))))
+                                                                                          (!21
+                                                                                             !2))))
                                                                                  (unIData
                                                                                     (iData
-                                                                                       (!19
-                                                                                          !13))))
+                                                                                       (!20
+                                                                                          !3))))
                                                                               (unIData
-                                                                                 (iData
-                                                                                    (case
-                                                                                       (lessThanEqualsInteger
-                                                                                          !6
-                                                                                          0)
-                                                                                       [ !6
-                                                                                       , (force
-                                                                                            (!20
-                                                                                               "ptryPositive: building with non positive"
-                                                                                               (delay
-                                                                                                  error))) ]))))
-                                                                           (unIData
-                                                                              !1))
-                                                                        (force
-                                                                           headList
-                                                                           !2))
-                                                                     (unIData
-                                                                        !2)) ])
-                                                           (unIData !2)) ])
-                                                 (unIData !2)) ])
-                                       (unIData !2)) ]) ]) ])
-                 (unConstrData !4))
-              (\!0 ->
-                 case
-                   (lessThanEqualsInteger !1 -1)
-                   [!1, (force (!3 !2 (delay error)))]))
-           "ptryNatural: building with negative")
+                                                                                 !1))
+                                                                           (force
+                                                                              headList
+                                                                              !2))
+                                                                        (unIData
+                                                                           !2)) ]) ])
+                                                         (unIData !2)) ])
+                                               (unIData !2)) ])
+                                     (unIData !2)) ]) ])
+                    (\!0 ->
+                       case
+                         (lessThanEqualsInteger !1 0)
+                         [!1, (force (!5 !2 (delay error)))]))
+                 "ptryPositive: building with non positive")
+              (Constr 1
+                 [ I 170141183460469231731687303715884105727
+                 , I 49
+                 , I 7
+                 , I 337
+                 , I 6621 ]))
+           (\!0 ->
+              case
+                (lessThanEqualsInteger !1 -1)
+                [!1, (force (!2 !3 (delay error)))]))
         (force trace))
-     (Constr 1
-        [I 337, I 6621, I 170141183460469231731687303715884105727, I 49, I 7]))
+     "ptryNatural: building with negative")

@@ -23,15 +23,20 @@ module Grumplestiltskin.EllipticCurve (
     --
 
     -- ** Representation change
-    ptoPoint,
+    pecFromData,
+    pecToData,
 
     -- ** Operations
-    paddPoints,
-    ppointDouble,
-    pscalePoint,
-    pinvPoint,
+    pecAdd,
+    pecDouble,
+    pecScale,
+    pecInvert,
+
+    -- ** FInalizing computations
+    ptoPoint,
 ) where
 
+import Data.Kind (Type)
 import GHC.Generics (Generic)
 import Generics.SOP qualified as SOP
 import Grumplestiltskin.Galois (PGFElement, PGFIntermediate, pgfFromElem, pgfRecip, pgfToElem, pgfZero)
@@ -49,6 +54,7 @@ import Plutarch.Prelude (
     PInteger,
     PIsData,
     PNatural,
+    POpaque,
     PPositive,
     PShow,
     PString,
@@ -57,6 +63,7 @@ import Plutarch.Prelude (
     pasConstr,
     pcon,
     pcond,
+    pdata,
     pfix,
     pfromData,
     pheadBuiltin,
@@ -71,8 +78,6 @@ import Plutarch.Prelude (
     ptraceInfoError,
     ptryFrom,
     pupcast,
-    runTermCont,
-    tcont,
     (#),
     (#$),
     (#*),
@@ -158,13 +163,21 @@ datums); to do any work with such points, we recommend first converting to
 @since 1.1.0
 -}
 data PECPointData (s :: S)
-    = PECInfinityData
-    | PECPointData
-        (Term s (PAsData PNatural))
-        (Term s (PAsData PNatural))
+    = -- Note (Koz, 5/1/2026): We order the fields in this rather odd way, as it
+      -- allows us to speculatively decode (or validate) the field order and
+      -- curve constants before we even check what tag we have. This would
+      -- _ideally_ be done by factoring the curve information into a separate
+      -- data type, but that would make the encoding larger due to list nesting.
+      PECInfinityData
         (Term s (PAsData PPositive))
         (Term s (PAsData PInteger))
         (Term s (PAsData PInteger))
+    | PECPointData
+        (Term s (PAsData PPositive))
+        (Term s (PAsData PInteger))
+        (Term s (PAsData PInteger))
+        (Term s (PAsData PNatural))
+        (Term s (PAsData PNatural))
     deriving stock
         ( -- | @since 1.1.0
           Generic
@@ -189,51 +202,56 @@ deriving via (DeriveAsDataStruct PECPointData) instance PlutusType PECPointData
 @since 1.1.0
 -}
 instance PTryFrom PData (PAsData PECPointData) where
-    ptryFrom' opq = runTermCont $ do
-        p <- tcont $ plet (pasConstr # opq)
-        PBuiltinPair tag fields <- tcont (pmatch p)
-        let res =
-                punsafeCase
-                    tag
-                    [ -- Point at infinity case
-                      popaque opq
-                    , -- Actual point case
-                      popaque (go opq fields)
-                    ]
-        pure (punsafeCoerce res, ())
+    ptryFrom' ::
+        forall (s :: S) (r :: S -> Type).
+        Term s PData ->
+        ((Term s (PAsData PECPointData), ()) -> Term s r) ->
+        Term s r
+    ptryFrom' opq k = pmatch (pasConstr # opq) $ \(PBuiltinPair tag fields) ->
+        -- As we know that in any valid case, the first three fields are
+        -- identical, we speculatively validate them right now.
+        pheadTailBuiltin fields $ \fieldOrder' rest1 ->
+            ptryFrom @(PAsData PPositive) fieldOrder' $ \(fieldOrder, _) ->
+                pheadTailBuiltin rest1 $ \curveA' rest2 ->
+                    ptryFrom @(PAsData PInteger) curveA' $ \(curveA, _) ->
+                        pheadTailBuiltin rest2 $ \curveB' rest3 ->
+                            ptryFrom @(PAsData PInteger) curveB' $ \(curveB, _) ->
+                                -- Now check the tag, and further 'unwind' the fields if
+                                -- needed.
+                                k
+                                    ( punsafeCase
+                                        tag
+                                        [ popaque opq
+                                        , go (pfromData fieldOrder) (pfromData curveA) (pfromData curveB) rest3
+                                        ]
+                                    , ()
+                                    )
       where
-        go :: forall (s :: S). Term s PData -> Term s (PBuiltinList PData) -> Term s PData
-        go whole fields =
-            -- Disassemble and decode all five components in order
-            pheadTailBuiltin fields $ \x rest1 ->
-                ptryFrom @(PAsData PNatural) x $ \(x', _) ->
-                    pheadTailBuiltin rest1 $ \y rest2 ->
-                        ptryFrom @(PAsData PNatural) y $ \(y', _) ->
-                            pheadTailBuiltin rest2 $ \fieldOrder rest3 ->
-                                ptryFrom @(PAsData PPositive) fieldOrder $ \(fieldOrder', _) ->
-                                    pheadTailBuiltin rest3 $ \curveA rest4 ->
-                                        ptryFrom @(PAsData PInteger) curveA $ \(curveA', _) ->
-                                            plet (pheadBuiltin # rest4) $ \curveB ->
-                                                ptryFrom @(PAsData PInteger) curveB $ \(curveB', _) ->
-                                                    -- We will need the field order and `x` and `y` a
-                                                    -- bunch.
-                                                    plet (pfromData fieldOrder') $ \decodedFieldOrder ->
-                                                        plet (pfromData x') $ \decodedX ->
-                                                            plet (pfromData y') $ \decodedY ->
-                                                                pcond
-                                                                    [ (pupcast @PInteger decodedX #>= pupcast decodedFieldOrder, ptraceInfoError badX)
-                                                                    , (pupcast @PInteger decodedY #>= pupcast decodedFieldOrder, ptraceInfoError badY)
-                                                                    , (ponCurve decodedX decodedY decodedFieldOrder (pfromData curveA') (pfromData curveB'), whole)
-                                                                    ]
-                                                                    (ptraceInfoError notOnCurve)
-        badX :: forall (s :: S). Term s PString
+        go ::
+            Term s PPositive ->
+            Term s PInteger ->
+            Term s PInteger ->
+            Term s (PBuiltinList PData) ->
+            Term s POpaque
+        go fieldOrder curveA curveB rest = pheadTailBuiltin rest $ \x' rest' ->
+            ptryFrom @(PAsData PNatural) x' $ \(x, _) ->
+                plet (pheadBuiltin # rest') $ \y' ->
+                    ptryFrom @(PAsData PNatural) y' $ \(y, _) ->
+                        plet (pfromData x) $ \decodedX ->
+                            plet (pfromData y) $ \decodedY ->
+                                pcond
+                                    [ (pupcast @PInteger decodedX #>= pupcast fieldOrder, ptraceInfoError badX)
+                                    , (pupcast @PInteger decodedY #>= pupcast fieldOrder, ptraceInfoError badY)
+                                    , (ponCurve decodedX decodedY fieldOrder curveA curveB, popaque opq)
+                                    ]
+                                    (ptraceInfoError notOnCurve)
+        badX :: Term s PString
         badX = "PTryFrom PECPointData: Unsuitable X coordinate for given field order"
-        badY :: forall (s :: S). Term s PString
+        badY :: Term s PString
         badY = "PTryFrom PECPointData: Unsuitable Y coordinate for given field order"
-        notOnCurve :: forall (s :: S). Term s PString
+        notOnCurve :: Term s PString
         notOnCurve = "PTryFrom PECPointData: Specified point not on specified curve"
         ponCurve ::
-            forall (s :: S).
             Term s PNatural ->
             Term s PNatural ->
             Term s PPositive ->
@@ -245,6 +263,31 @@ instance PTryFrom PData (PAsData PECPointData) where
              in plet (pupcast (x #* x)) $ \xSquared ->
                     let rhs = (pupcast x #* xSquared) #+ ((curveA #* xSquared) #+ curveB)
                      in (pmod # pupcast (y #* y) # fieldOrder') #== (pmod # rhs # fieldOrder')
+
+-- | @since 1.1.0
+pecFromData ::
+    forall (r :: S -> Type) (s :: S).
+    Term s PECPointData ->
+    (Term s PECPoint -> Term s PPositive -> Term s PInteger -> Term s PInteger -> Term s r) ->
+    Term s r
+pecFromData x f = pmatch x $ \case
+    PECInfinityData fieldOrder curveA curveB -> f (pcon PECInfinity) (pfromData fieldOrder) (pfromData curveA) (pfromData curveB)
+    -- Note (Koz, 5/1/2026): The `punsafeCoerce`ing is safe here, because we know
+    -- that the `PNatural`s have been reduced already.
+    PECPointData fieldOrder curveA curveB pointX pointY ->
+        f (pcon $ PECPoint (punsafeCoerce $ pfromData pointX) (punsafeCoerce $ pfromData pointY)) (pfromData fieldOrder) (pfromData curveA) (pfromData curveB)
+
+-- | @since 1.1.0
+pecToData ::
+    forall (s :: S).
+    Term s PECPoint ->
+    Term s PPositive ->
+    Term s PInteger ->
+    Term s PInteger ->
+    Term s PECPointData
+pecToData p fieldOrder curveA curveB = pmatch p $ \case
+    PECPoint x y -> pcon . PECPointData (pdata fieldOrder) (pdata curveA) (pdata curveB) (pdata $ punsafeCoerce x) . pdata . punsafeCoerce $ y
+    PECInfinity -> pcon . PECInfinityData (pdata fieldOrder) (pdata curveA) . pdata $ curveB
 
 {- | A point on some elliptic curve. The order of the field for the @x@ and @y@
 co-ordinates of the curve point is implicit, for reasons of efficiency.
@@ -318,14 +361,14 @@ through @P@ and @Q@. If @P = Q@, we instead calculate @2P@.
 
 @since 1.1.0
 -}
-paddPoints ::
+pecAdd ::
     forall (s :: S).
     Term s PPositive ->
     Term s PInteger ->
     Term s PECIntermediatePoint ->
     Term s PECIntermediatePoint ->
     Term s PECIntermediatePoint
-paddPoints fieldModulus curveA point1 point2 = pmatch point1 $ \case
+pecAdd fieldModulus curveA point1 point2 = pmatch point1 $ \case
     -- Point at infinity is an identity for addition
     PECIntermediateInfinity -> point2
     PECIntermediatePoint point1X point1Y -> pmatch point2 $ \case
@@ -338,7 +381,7 @@ paddPoints fieldModulus curveA point1 point2 = pmatch point1 $ \case
                         ( pif
                             (pgfToElem yDiff fieldModulus #== pgfZero)
                             -- If both points are equal, we double the first one
-                            (ppointDouble fieldModulus curveA point1)
+                            (pecDouble fieldModulus curveA point1)
                             -- If both points have X = 0 but different Y, their sum is
                             -- the point at infinity
                             (pcon PECIntermediateInfinity)
@@ -362,13 +405,13 @@ itself.
 
 @since 1.1.0
 -}
-ppointDouble ::
+pecDouble ::
     forall (s :: S).
     Term s PPositive ->
     Term s PInteger ->
     Term s PECIntermediatePoint ->
     Term s PECIntermediatePoint
-ppointDouble fieldModulus curveA point = pmatch point $ \case
+pecDouble fieldModulus curveA point = pmatch point $ \case
     PECIntermediateInfinity -> pcon PECIntermediateInfinity
     PECIntermediatePoint pointX pointY -> plet (pgfToElem pointY fieldModulus) $ \pointYReduced ->
         pif
@@ -387,36 +430,36 @@ ppointDouble fieldModulus curveA point = pmatch point $ \case
                      in pcon . PECIntermediatePoint newPointX $ newPointY
             )
 
-{- | @'pscalePoint' fieldOrder curveA scaleFactor p@ performs a scalar
+{- | @'pecScale' fieldOrder curveA scaleFactor p@ performs a scalar
 multiplication of @p@ by @scaleFactor@, assuming that @p@ is defined over a
 finite field of order @fieldOrder@, and that @p@'s curve has an @a@ constant
 of @curveA@. In particular:
 
-* @'pscalePoint' fieldOrder curveA 0 p@ yields the point at infinity;
-* @'pscalePoint' fieldOrder curveA 1 p@ yields @p@;
-* @'pscalePoint' fieldOrder curveA (-1) p@ yields @'pinvPoint' p@; and
-* @'pscalePoint' fieldOrder curveA 2 p@ yields @'ppointDouble' fieldOrder curveA p@.
+* @'pecScale' fieldOrder curveA 0 p@ yields the point at infinity;
+* @'pecScale' fieldOrder curveA 1 p@ yields @p@;
+* @'pecScale' fieldOrder curveA (-1) p@ yields @'pecInvert' p@; and
+* @'pecScale' fieldOrder curveA 2 p@ yields @'pecDouble' fieldOrder curveA p@.
 
-Furthermore, 'pscalePoint' obeys the following laws:
+Furthermore, 'pecScale' obeys the following laws:
 
-* @'pscalePoint' fieldOrder curveA (-n) = 'pinvPoint' ('pscalePoint' fieldOrder curveA n)@
-* @'paddPoints' fo cA ('pscalePoint' fo cA n p) ('pscalePoint' fo cA m p) =
-   'pscalePoint' fo cA (n #+ m) p@
-* @'pscalePoint' fo cA m ('pscalePoint' fo cA n p) = 'pscalePoint' fo cA (n #* m) p@
+* @'pecScale' fieldOrder curveA (-n) = 'pecInvert' ('pecScale' fieldOrder curveA n)@
+* @'pecAdd' fo cA ('pecScale' fo cA n p) ('pecScale' fo cA m p) =
+   'pecScale' fo cA (n #+ m) p@
+* @'pecScale' fo cA m ('pecScale' fo cA n p) = 'pecScale' fo cA (n #* m) p@
 
 @since 1.1.0
 -}
-pscalePoint ::
+pecScale ::
     forall (s :: S).
     Term s PPositive ->
     Term s PInteger ->
     Term s PInteger ->
     Term s PECIntermediatePoint ->
     Term s PECIntermediatePoint
-pscalePoint fieldModulus curveA scaleFactor point =
+pecScale fieldModulus curveA scaleFactor point =
     pcond
         [ (scaleFactor #== 0, pcon PECIntermediateInfinity)
-        , (scaleFactor #<= 0, pinvPoint (go #$ pabs # scaleFactor))
+        , (scaleFactor #<= 0, pecInvert (go #$ pabs # scaleFactor))
         ]
         (go # scaleFactor)
   where
@@ -426,23 +469,23 @@ pscalePoint fieldModulus curveA scaleFactor point =
             (i #<= 1)
             point
             ( plet (self #$ pquot # i # 2) $ \below ->
-                plet (ppointDouble fieldModulus curveA below) $ \doubled ->
+                plet (pecDouble fieldModulus curveA below) $ \doubled ->
                     pif
                         ((prem # i # 2) #== 1)
-                        (paddPoints fieldModulus curveA doubled point)
+                        (pecAdd fieldModulus curveA doubled point)
                         doubled
             )
 
-{- | Constructs the inverse of a point, such that for any @p@, @paddPoints
-fieldOrder curveA p (pinvPoint p)@ is the point at infinity.
+{- | Constructs the inverse of a point, such that for any @p@, @pecAdd
+fieldOrder curveA p (pecInvert p)@ is the point at infinity.
 
 @since 1.1.0
 -}
-pinvPoint ::
+pecInvert ::
     forall (s :: S).
     Term s PECIntermediatePoint ->
     Term s PECIntermediatePoint
-pinvPoint point = pmatch point $ \case
+pecInvert point = pmatch point $ \case
     PECIntermediateInfinity -> pcon PECIntermediateInfinity
     PECIntermediatePoint x y -> pcon $ PECIntermediatePoint x (pnegate # y)
 
