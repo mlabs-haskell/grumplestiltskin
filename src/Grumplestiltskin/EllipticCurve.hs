@@ -242,8 +242,9 @@ instance PTryFrom PData (PAsData PECPointData) where
             Term s PBool
         ponCurve x y fieldOrder curveA curveB =
             let fieldOrder' = pupcast @PInteger fieldOrder
-                rhs = pupcast (x #* (x #* x)) #+ ((curveA #* pupcast (x #* x)) #+ curveB)
-             in (pmod # pupcast (y #* y) # fieldOrder') #== (pmod # rhs # fieldOrder')
+             in plet (pupcast (x #* x)) $ \xSquared ->
+                    let rhs = (pupcast x #* xSquared) #+ ((curveA #* xSquared) #+ curveB)
+                     in (pmod # pupcast (y #* y) # fieldOrder') #== (pmod # rhs # fieldOrder')
 
 {- | A point on some elliptic curve. The order of the field for the @x@ and @y@
 co-ordinates of the curve point is implicit, for reasons of efficiency.

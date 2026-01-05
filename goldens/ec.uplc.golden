@@ -581,29 +581,29 @@ ptryFrom program
                                                                                                !3
                                                                                                !1)
                                                                                             [ (case
-                                                                                                 (equalsInteger
-                                                                                                    (modInteger
-                                                                                                       (multiplyInteger
-                                                                                                          !1
-                                                                                                          !1)
-                                                                                                       !3)
-                                                                                                    (modInteger
-                                                                                                       (addInteger
+                                                                                                 ((\!0 ->
+                                                                                                     equalsInteger
+                                                                                                       (modInteger
                                                                                                           (multiplyInteger
                                                                                                              !2
-                                                                                                             (multiplyInteger
-                                                                                                                !2
-                                                                                                                !2))
+                                                                                                             !2)
+                                                                                                          !4)
+                                                                                                       (modInteger
                                                                                                           (addInteger
                                                                                                              (multiplyInteger
-                                                                                                                (unIData
-                                                                                                                   !8)
+                                                                                                                !3
+                                                                                                                !1)
+                                                                                                             (addInteger
                                                                                                                 (multiplyInteger
-                                                                                                                   !2
-                                                                                                                   !2))
-                                                                                                             (unIData
-                                                                                                                !5)))
-                                                                                                       !3))
+                                                                                                                   (unIData
+                                                                                                                      !9)
+                                                                                                                   !1)
+                                                                                                                (unIData
+                                                                                                                   !6)))
+                                                                                                          !4))
+                                                                                                    (multiplyInteger
+                                                                                                       !2
+                                                                                                       !2))
                                                                                                  [ (force
                                                                                                       (!23
                                                                                                          "PTryFrom PECPointData: Specified point not on specified curve"
