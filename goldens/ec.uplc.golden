@@ -526,7 +526,7 @@ pecDouble program
                (modInteger !1 !3))
         , (constr 1 []) ])
      170141183460469231731687303715884105727)
-ptoPoint program
+pecToPoint program
   1.1.0
   ((\!0 ->
       case
@@ -538,6 +538,13 @@ ptoPoint program
                (modInteger !2 !3))
         , (constr 1 []) ])
      170141183460469231731687303715884105727)
+pecFromPoint program
+  1.1.0
+  (case
+     (constr 0
+        [ 5243175449384122763440445208377245366
+        , 97081358726027661663585417664175721593 ])
+     [(\!0 !0 -> constr 0 [!2, !1]), (constr 1 [])])
 ptryFrom program
   1.1.0
   ((\!0 ->

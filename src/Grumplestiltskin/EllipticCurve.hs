@@ -20,8 +20,6 @@ module Grumplestiltskin.EllipticCurve (
 
     -- * Functions
 
-    --
-
     -- ** Representation change
     pecFromData,
     pecToData,
@@ -32,8 +30,11 @@ module Grumplestiltskin.EllipticCurve (
     pecScale,
     pecInvert,
 
-    -- ** FInalizing computations
-    ptoPoint,
+    -- ** Element to intermediate
+    pecFromPoint,
+
+    -- ** Finalizing computations
+    pecToPoint,
 ) where
 
 import Data.Kind (Type)
@@ -340,16 +341,27 @@ data PECIntermediatePoint (s :: S)
 
 {- | Convert a 'PECIntermediatePoint' into a valid point on an elliptic curve,
 based on a finite field of order specified by the 'PPositive' argument. Said
-argument should be prime, although 'ptoPoint' doesn't require this.
+argument should be prime, although 'pecToPoint' doesn't require this.
 
 @since 1.1.0
 -}
-ptoPoint ::
+pecToPoint ::
     forall (s :: S).
     Term s PPositive -> Term s PECIntermediatePoint -> Term s PECPoint
-ptoPoint fieldModulus p = pmatch p $ \case
+pecToPoint fieldModulus p = pmatch p $ \case
     PECIntermediateInfinity -> pcon PECInfinity
     PECIntermediatePoint x y -> pcon $ PECPoint (pgfToElem x fieldModulus) (pgfToElem y fieldModulus)
+
+{- | Convert a 'PECPoint' to a 'PECIntermediatePoint'.
+
+@since 1.1.0
+-}
+pecFromPoint ::
+    forall (s :: S).
+    Term s PECPoint -> Term s PECIntermediatePoint
+pecFromPoint p = pmatch p $ \case
+    PECInfinity -> pcon PECIntermediateInfinity
+    PECPoint x y -> pcon $ PECIntermediatePoint (pgfFromElem x) (pgfFromElem y)
 
 {- | Add two elliptic curve points, where both points are based on a finite
 field of order specified by the 'PPositive' argument, with the curve having
