@@ -21,7 +21,6 @@ import Test.QuickCheck (
 -- The type parameter is how many points you want
 --
 -- The reason we do it this way is twofold:
---
 
 -- * Generating a random curve is fairly involved, as we also have to generate
 

@@ -9,12 +9,10 @@ is @y^2 = x^3 + ax + b (mod r)@, where @r@ is the field order.
 module Grumplestiltskin.EllipticCurve (
     -- * Types
 
-    -- ** Plutarch
-
-    -- *** @Data@ encoded
+    -- ** @Data@ encoded
     PECPointData,
 
-    -- *** SOP encoded
+    -- ** SOP encoded
     PECPoint (PECPoint, PECInfinity),
     PECIntermediatePoint (PECIntermediatePoint, PECIntermediateInfinity),
 
@@ -265,7 +263,25 @@ instance PTryFrom PData (PAsData PECPointData) where
                     let rhs = (pupcast x #* xSquared) #+ ((curveA #* xSquared) #+ curveB)
                      in (pmod # pupcast (y #* y) # fieldOrder') #== (pmod # rhs # fieldOrder')
 
--- | @since 1.1.0
+{- | Given a @Data@-encoded curve point, \'unpacks\' its data and passes it to a
+user-provided handler. The handler arguments are, in order:
+
+1. The 'PECPoint' so decoded;
+2. The field order of the @x@ and @y@ coordinates of the decoded point;
+3. The curve's @A@ constant; and
+4. The curve's @B@ constant.
+
+= Note
+
+We have to use this CPS-style handling of 'PECPointData' due to the large
+amount of information @Data@ encodings of points have to preserve. Given that
+each point may have its own curve specifics (which you might want to check),
+and many operations in this module require knowing at least the field order,
+and quite often the @A@ constant as well. This handler ensures that all this
+information is available conveniently and safely.
+
+@since 1.1.0
+-}
 pecFromData ::
     forall (r :: S -> Type) (s :: S).
     Term s PECPointData ->
@@ -278,7 +294,11 @@ pecFromData x f = pmatch x $ \case
     PECPointData fieldOrder curveA curveB pointX pointY ->
         f (pcon $ PECPoint (punsafeCoerce $ pfromData pointX) (punsafeCoerce $ pfromData pointY)) (pfromData fieldOrder) (pfromData curveA) (pfromData curveB)
 
--- | @since 1.1.0
+{- | Given a point, the field order of its coordinates, and the @A@ and @B@
+constants for its curve, produce its @Data@ encoding.
+
+@since 1.1.0
+-}
 pecToData ::
     forall (s :: S).
     Term s PECPoint ->
@@ -365,7 +385,7 @@ pecFromPoint p = pmatch p $ \case
 
 {- | Add two elliptic curve points, where both points are based on a finite
 field of order specified by the 'PPositive' argument, with the curve having
-an @a@ constant specified by the 'PInteger' argument.
+an @A@ constant specified by the 'PInteger' argument.
 
 More precisely, adding points @P@ and @Q@ produces the point @R@ such that
 @R@ is the inverse of a point on the intersection of the curve and the line
@@ -408,7 +428,7 @@ pecAdd fieldModulus curveA point1 point2 = pmatch point1 $ \case
                         )
 
 {- | Double an elliptic curve point, where the point is based on a finite field
-of order specified by the 'PPositive' argument, with the curve having an @a@
+of order specified by the 'PPositive' argument, with the curve having an @A@
 constant specified by the 'PInteger' argument.
 
 More precisely, for a point @P@, this calculates @2P = R@ such that @R@ is
@@ -444,7 +464,7 @@ pecDouble fieldModulus curveA point = pmatch point $ \case
 
 {- | @'pecScale' fieldOrder curveA scaleFactor p@ performs a scalar
 multiplication of @p@ by @scaleFactor@, assuming that @p@ is defined over a
-finite field of order @fieldOrder@, and that @p@'s curve has an @a@ constant
+finite field of order @fieldOrder@, and that @p@'s curve has an @A@ constant
 of @curveA@. In particular:
 
 * @'pecScale' fieldOrder curveA 0 p@ yields the point at infinity;

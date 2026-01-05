@@ -72,6 +72,7 @@ main = do
                 , testProperty "pecScale p -1 = invPoint p" propScaleNegOne
                 , adjustOption (smallerTests 2) $ testProperty "pecAdd (pecScale p n) (pecScale p m) = pecScale p (n + m)" propScaleAdd
                 , adjustOption (smallerTests 4) $ testProperty "pecScale (pecScale p n) m = pecScale p (n * m)" propScaleMul
+                , testProperty "pecToPoint n = pecToPoint n . pecFromPoint . pecToPoint n" propToFromPoint
                 ]
         , plutarchGolden
             "Case 3: goldens over y^2 = x^3 + 49x^2 + 7 (mod 2^127 - 1)"
@@ -385,6 +386,27 @@ propScaleMul = forAllShrinkShow (arbitrary @(GenCurvePoints 1, Integer, Integer)
         let order' = punsafeCoerce order
          in pecToPoint order' (pecScale order' constantA m (pecScale order' constantA n p))
                 #== pecToPoint order' (pecScale order' constantA (n #* m) p)
+
+propToFromPoint :: Property
+propToFromPoint = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $
+    \(GenCurvePoints order _ _ points) ->
+        let (x, y) = Vector.index' points (Proxy @0)
+         in plift
+                ( precompileTerm (plam go)
+                    # pconstant (fromIntegral x)
+                    # pconstant (fromIntegral y)
+                    # pconstant (fromIntegral order)
+                )
+  where
+    go ::
+        forall (s :: S).
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PBool
+    go x y order = plet (pcon $ PECIntermediatePoint (punsafeCoerce x) (punsafeCoerce y)) $ \p ->
+        let order' = punsafeCoerce order
+         in pecToPoint order' p #== (pecToPoint order' . pecFromPoint . pecToPoint order' $ p)
 
 -- Helpers
 
