@@ -73,6 +73,7 @@ main = do
                 , adjustOption (smallerTests 2) $ testProperty "pecAdd (pecScale p n) (pecScale p m) = pecScale p (n + m)" propScaleAdd
                 , adjustOption (smallerTests 4) $ testProperty "pecScale (pecScale p n) m = pecScale p (n * m)" propScaleMul
                 , testProperty "pecToPoint n = pecToPoint n . pecFromPoint . pecToPoint n" propToFromPoint
+                , testProperty "(x + x) + y = x + (x + y)" propAssocSpecial
                 ]
         , plutarchGolden
             "Case 3: goldens over y^2 = x^3 + 49x^2 + 7 (mod 2^127 - 1)"
@@ -101,7 +102,7 @@ main = do
     -- Note (Koz, 17/12/2025): By default, QuickCheck only runs 100 tests, which
     -- is far too few to be useful. Thus, we increase the count.
     moreTests :: QuickCheckTests -> QuickCheckTests
-    moreTests = max 1000
+    moreTests = max 100_000
     point :: forall (s :: S). Term s PECIntermediatePoint
     point = createPoint 337 6621
     pointX :: forall (s :: S). Term s PECIntermediatePoint
@@ -128,6 +129,35 @@ main = do
             )
 
 -- Properties
+
+propAssocSpecial :: Property
+propAssocSpecial = forAllShrinkShow (arbitrary @(GenCurvePoints 2)) shrink show $ \(GenCurvePoints order constantA _ points) ->
+    let (x1, y1) = Vector.index' points (Proxy @0)
+        (x2, y2) = Vector.index' points (Proxy @1)
+     in plift
+            ( precompileTerm (plam go)
+                # pconstant (fromIntegral x1)
+                # pconstant (fromIntegral y1)
+                # pconstant (fromIntegral x2)
+                # pconstant (fromIntegral y2)
+                # pconstant (fromIntegral order)
+                # pconstant (fromIntegral constantA)
+            )
+  where
+    go ::
+        forall (s :: S).
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PBool
+    go x1 y1 x2 y2 order constantA = plet (createPoint x1 y1) $ \p1 ->
+        plet (createPoint x2 y2) $ \p2 ->
+            let order' = punsafeCoerce order
+             in pecToPoint order' (pecAdd order' constantA (pecAdd order' constantA p1 p1) p2)
+                    #== pecToPoint order' (pecAdd order' constantA p1 (pecAdd order' constantA p1 p2))
 
 propAssocAdd :: Property
 propAssocAdd = forAllShrinkShow (arbitrary @(GenCurvePoints 3)) shrink show $ \(GenCurvePoints order constantA _ points) ->
