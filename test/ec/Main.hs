@@ -80,6 +80,7 @@ main = do
             "ec"
             [ goldenEval "pecAdd" (pecAdd curveModulus curveA pointX pointY)
             , goldenEval "pecScale" (pecScale curveModulus curveA 10 point)
+            , goldenEval "pecScale negative" (pecScale curveModulus curveA (-10) point)
             , goldenEval "pecInvert" (pecInvert pointX)
             , goldenEval "pecDouble" (pecDouble curveModulus curveA pointX)
             , goldenEval "pecToPoint" (pecToPoint curveModulus pointX)
