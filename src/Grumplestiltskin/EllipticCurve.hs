@@ -58,7 +58,6 @@ import Plutarch.Prelude (
     PShow,
     PString,
     PTryFrom (ptryFrom'),
-    pabs,
     pasConstr,
     pcon,
     pcond,
@@ -491,7 +490,7 @@ pecScale ::
 pecScale fieldModulus curveA scaleFactor point =
     pcond
         [ (scaleFactor #== 0, pcon PECIntermediateInfinity)
-        , (scaleFactor #<= 0, pecInvert (go #$ pabs # scaleFactor))
+        , (scaleFactor #<= 0, pecInvert (go #$ pnegate # scaleFactor))
         ]
         (go # scaleFactor)
   where
@@ -501,10 +500,18 @@ pecScale fieldModulus curveA scaleFactor point =
             (i #<= 1)
             point
             ( plet (pecDouble fieldModulus curveA (self #$ pquot # i # 2)) $ \doubled ->
-                pif
-                    ((prem # i # 2) #== 1)
-                    (pecAdd fieldModulus curveA doubled point)
-                    doubled
+                -- Note (Koz, 13/01/2026): We can use casing on integers here,
+                -- as there are only two possible answers (0 and 1), which means
+                -- the default erroring behaviour cannot trigger. This allows us
+                -- to avoid having to call `BuiltinEquals` against a constant,
+                -- which makes things slightly smaller and faster.
+                punsafeCase
+                    (prem # i # 2)
+                    [ -- When 0
+                      popaque doubled
+                    , -- When 1
+                      popaque (pecAdd fieldModulus curveA doubled point)
+                    ]
             )
 
 {- | Constructs the inverse of a point, such that for any @p@, @pecAdd
