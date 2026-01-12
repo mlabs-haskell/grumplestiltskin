@@ -114,17 +114,192 @@ pecScale program
                                  case
                                    (lessThanEqualsInteger !1 1)
                                    [ ((\!0 ->
-                                         (\!0 ->
+                                         case
+                                           (equalsInteger
+                                              (remainderInteger !2 2)
+                                              1)
+                                           [ !1
+                                           , (case
+                                                !1
+                                                [ (\!0 !0 ->
+                                                     case
+                                                       (constr 0 [!8, !9])
+                                                       [ (\!0 !0 ->
+                                                            (\!0 ->
+                                                               (\!0 ->
+                                                                  case
+                                                                    (equalsInteger
+                                                                       (modInteger
+                                                                          !1
+                                                                          !11)
+                                                                       0)
+                                                                    [ ((\!0 ->
+                                                                          (\!0 ->
+                                                                             (\!0 ->
+                                                                                constr 0
+                                                                                  [ !2
+                                                                                  , !1 ])
+                                                                               (subtractInteger
+                                                                                  (multiplyInteger
+                                                                                     !2
+                                                                                     (subtractInteger
+                                                                                        !8
+                                                                                        !1))
+                                                                                  !7))
+                                                                            (subtractInteger
+                                                                               (subtractInteger
+                                                                                  (multiplyInteger
+                                                                                     !1
+                                                                                     !1)
+                                                                                  !7)
+                                                                               !5))
+                                                                         (modInteger
+                                                                            (multiplyInteger
+                                                                               !2
+                                                                               (!10
+                                                                                  !1
+                                                                                  !11))
+                                                                            !11))
+                                                                    , (case
+                                                                         (equalsInteger
+                                                                            (modInteger
+                                                                               !2
+                                                                               !11)
+                                                                            0)
+                                                                         [ (constr 1
+                                                                              [  ])
+                                                                         , (case
+                                                                              !7
+                                                                              [ (\!0
+                                                                                  !0 ->
+                                                                                   (\!0 ->
+                                                                                      case
+                                                                                        (equalsInteger
+                                                                                           !1
+                                                                                           0)
+                                                                                        [ ((\!0 ->
+                                                                                              (\!0 ->
+                                                                                                 (\!0 ->
+                                                                                                    constr 0
+                                                                                                      [ !2
+                                                                                                      , !1 ])
+                                                                                                   (subtractInteger
+                                                                                                      (multiplyInteger
+                                                                                                         !2
+                                                                                                         (subtractInteger
+                                                                                                            !5
+                                                                                                            (subtractInteger
+                                                                                                               (multiplyInteger
+                                                                                                                  !2
+                                                                                                                  !2)
+                                                                                                               (multiplyInteger
+                                                                                                                  2
+                                                                                                                  !5))))
+                                                                                                      !3))
+                                                                                                (subtractInteger
+                                                                                                   (multiplyInteger
+                                                                                                      !1
+                                                                                                      !1)
+                                                                                                   (multiplyInteger
+                                                                                                      2
+                                                                                                      !4)))
+                                                                                             (modInteger
+                                                                                                (multiplyInteger
+                                                                                                   (addInteger
+                                                                                                      (multiplyInteger
+                                                                                                         3
+                                                                                                         (multiplyInteger
+                                                                                                            !3
+                                                                                                            !3))
+                                                                                                      49)
+                                                                                                   (!13
+                                                                                                      (multiplyInteger
+                                                                                                         2
+                                                                                                         !1)
+                                                                                                      !14))
+                                                                                                !14))
+                                                                                        , (constr 1
+                                                                                             [  ]) ])
+                                                                                     (modInteger
+                                                                                        !1
+                                                                                        !13))
+                                                                              , (constr 1
+                                                                                   [  ]) ]) ]) ])
+                                                                 (subtractInteger
+                                                                    !5
+                                                                    !3))
+                                                              (subtractInteger
+                                                                 !3
+                                                                 !1))
+                                                       , !3 ])
+                                                , (constr 0 [!6, !7]) ]) ])
+                                        (case
+                                           (!2 !2 (quotientInteger !1 2))
+                                           [ (\!0 !0 ->
+                                                (\!0 ->
+                                                   case
+                                                     (equalsInteger !1 0)
+                                                     [ ((\!0 ->
+                                                           (\!0 ->
+                                                              (\!0 ->
+                                                                 constr 0
+                                                                   [!2, !1])
+                                                                (subtractInteger
+                                                                   (multiplyInteger
+                                                                      !2
+                                                                      (subtractInteger
+                                                                         !5
+                                                                         (subtractInteger
+                                                                            (multiplyInteger
+                                                                               !2
+                                                                               !2)
+                                                                            (multiplyInteger
+                                                                               2
+                                                                               !5))))
+                                                                   !3))
+                                                             (subtractInteger
+                                                                (multiplyInteger
+                                                                   !1
+                                                                   !1)
+                                                                (multiplyInteger
+                                                                   2
+                                                                   !4)))
+                                                          (modInteger
+                                                             (multiplyInteger
+                                                                (addInteger
+                                                                   (multiplyInteger
+                                                                      3
+                                                                      (multiplyInteger
+                                                                         !3
+                                                                         !3))
+                                                                   49)
+                                                                (!6
+                                                                   (multiplyInteger
+                                                                      2
+                                                                      !1)
+                                                                   !7))
+                                                             !7))
+                                                     , (constr 1 []) ])
+                                                  (modInteger !1 !6))
+                                           , (constr 1 []) ]))
+                                   , (constr 0 [!5, !6]) ])
+                              10)
+                         , (case
+                              ((\!0 -> !1 !1)
+                                 (\!0 !0 ->
+                                    case
+                                      (lessThanEqualsInteger !1 1)
+                                      [ ((\!0 ->
                                             case
                                               (equalsInteger
-                                                 (remainderInteger !3 2)
+                                                 (remainderInteger !2 2)
                                                  1)
                                               [ !1
                                               , (case
                                                    !1
                                                    [ (\!0 !0 ->
                                                         case
-                                                          (constr 0 [!9, !10])
+                                                          (constr 0 [!8, !9])
                                                           [ (\!0 !0 ->
                                                                (\!0 ->
                                                                   (\!0 ->
@@ -132,7 +307,7 @@ pecScale program
                                                                        (equalsInteger
                                                                           (modInteger
                                                                              !1
-                                                                             !12)
+                                                                             !11)
                                                                           0)
                                                                        [ ((\!0 ->
                                                                              (\!0 ->
@@ -157,15 +332,15 @@ pecScale program
                                                                             (modInteger
                                                                                (multiplyInteger
                                                                                   !2
-                                                                                  (!11
+                                                                                  (!10
                                                                                      !1
-                                                                                     !12))
-                                                                               !12))
+                                                                                     !11))
+                                                                               !11))
                                                                        , (case
                                                                             (equalsInteger
                                                                                (modInteger
                                                                                   !2
-                                                                                  !12)
+                                                                                  !11)
                                                                                0)
                                                                             [ (constr 1
                                                                                  [  ])
@@ -213,17 +388,17 @@ pecScale program
                                                                                                                !3
                                                                                                                !3))
                                                                                                          49)
-                                                                                                      (!14
+                                                                                                      (!13
                                                                                                          (multiplyInteger
                                                                                                             2
                                                                                                             !1)
-                                                                                                         !15))
-                                                                                                   !15))
+                                                                                                         !14))
+                                                                                                   !14))
                                                                                            , (constr 1
                                                                                                 [  ]) ])
                                                                                         (modInteger
                                                                                            !1
-                                                                                           !14))
+                                                                                           !13))
                                                                                  , (constr 1
                                                                                       [  ]) ]) ]) ])
                                                                     (subtractInteger
@@ -233,9 +408,9 @@ pecScale program
                                                                     !3
                                                                     !1))
                                                           , !3 ])
-                                                   , (constr 0 [!7, !8]) ]) ])
+                                                   , (constr 0 [!6, !7]) ]) ])
                                            (case
-                                              !1
+                                              (!2 !2 (quotientInteger !1 2))
                                               [ (\!0 !0 ->
                                                    (\!0 ->
                                                       case
@@ -274,197 +449,15 @@ pecScale program
                                                                             !3
                                                                             !3))
                                                                       49)
-                                                                   (!7
+                                                                   (!6
                                                                       (multiplyInteger
                                                                          2
                                                                          !1)
-                                                                      !8))
-                                                                !8))
+                                                                      !7))
+                                                                !7))
                                                         , (constr 1 []) ])
-                                                     (modInteger !1 !7))
+                                                     (modInteger !1 !6))
                                               , (constr 1 []) ]))
-                                        (!2 !2 (quotientInteger !1 2)))
-                                   , (constr 0 [!5, !6]) ])
-                              10)
-                         , (case
-                              ((\!0 -> !1 !1)
-                                 (\!0 !0 ->
-                                    case
-                                      (lessThanEqualsInteger !1 1)
-                                      [ ((\!0 ->
-                                            (\!0 ->
-                                               case
-                                                 (equalsInteger
-                                                    (remainderInteger !3 2)
-                                                    1)
-                                                 [ !1
-                                                 , (case
-                                                      !1
-                                                      [ (\!0 !0 ->
-                                                           case
-                                                             (constr 0
-                                                                [!9, !10])
-                                                             [ (\!0 !0 ->
-                                                                  (\!0 ->
-                                                                     (\!0 ->
-                                                                        case
-                                                                          (equalsInteger
-                                                                             (modInteger
-                                                                                !1
-                                                                                !12)
-                                                                             0)
-                                                                          [ ((\!0 ->
-                                                                                (\!0 ->
-                                                                                   (\!0 ->
-                                                                                      constr 0
-                                                                                        [ !2
-                                                                                        , !1 ])
-                                                                                     (subtractInteger
-                                                                                        (multiplyInteger
-                                                                                           !2
-                                                                                           (subtractInteger
-                                                                                              !8
-                                                                                              !1))
-                                                                                        !7))
-                                                                                  (subtractInteger
-                                                                                     (subtractInteger
-                                                                                        (multiplyInteger
-                                                                                           !1
-                                                                                           !1)
-                                                                                        !7)
-                                                                                     !5))
-                                                                               (modInteger
-                                                                                  (multiplyInteger
-                                                                                     !2
-                                                                                     (!11
-                                                                                        !1
-                                                                                        !12))
-                                                                                  !12))
-                                                                          , (case
-                                                                               (equalsInteger
-                                                                                  (modInteger
-                                                                                     !2
-                                                                                     !12)
-                                                                                  0)
-                                                                               [ (constr 1
-                                                                                    [  ])
-                                                                               , (case
-                                                                                    !7
-                                                                                    [ (\!0
-                                                                                        !0 ->
-                                                                                         (\!0 ->
-                                                                                            case
-                                                                                              (equalsInteger
-                                                                                                 !1
-                                                                                                 0)
-                                                                                              [ ((\!0 ->
-                                                                                                    (\!0 ->
-                                                                                                       (\!0 ->
-                                                                                                          constr 0
-                                                                                                            [ !2
-                                                                                                            , !1 ])
-                                                                                                         (subtractInteger
-                                                                                                            (multiplyInteger
-                                                                                                               !2
-                                                                                                               (subtractInteger
-                                                                                                                  !5
-                                                                                                                  (subtractInteger
-                                                                                                                     (multiplyInteger
-                                                                                                                        !2
-                                                                                                                        !2)
-                                                                                                                     (multiplyInteger
-                                                                                                                        2
-                                                                                                                        !5))))
-                                                                                                            !3))
-                                                                                                      (subtractInteger
-                                                                                                         (multiplyInteger
-                                                                                                            !1
-                                                                                                            !1)
-                                                                                                         (multiplyInteger
-                                                                                                            2
-                                                                                                            !4)))
-                                                                                                   (modInteger
-                                                                                                      (multiplyInteger
-                                                                                                         (addInteger
-                                                                                                            (multiplyInteger
-                                                                                                               3
-                                                                                                               (multiplyInteger
-                                                                                                                  !3
-                                                                                                                  !3))
-                                                                                                            49)
-                                                                                                         (!14
-                                                                                                            (multiplyInteger
-                                                                                                               2
-                                                                                                               !1)
-                                                                                                            !15))
-                                                                                                      !15))
-                                                                                              , (constr 1
-                                                                                                   [  ]) ])
-                                                                                           (modInteger
-                                                                                              !1
-                                                                                              !14))
-                                                                                    , (constr 1
-                                                                                         [  ]) ]) ]) ])
-                                                                       (subtractInteger
-                                                                          !5
-                                                                          !3))
-                                                                    (subtractInteger
-                                                                       !3
-                                                                       !1))
-                                                             , !3 ])
-                                                      , (constr 0
-                                                           [!7, !8]) ]) ])
-                                              (case
-                                                 !1
-                                                 [ (\!0 !0 ->
-                                                      (\!0 ->
-                                                         case
-                                                           (equalsInteger !1 0)
-                                                           [ ((\!0 ->
-                                                                 (\!0 ->
-                                                                    (\!0 ->
-                                                                       constr 0
-                                                                         [ !2
-                                                                         , !1 ])
-                                                                      (subtractInteger
-                                                                         (multiplyInteger
-                                                                            !2
-                                                                            (subtractInteger
-                                                                               !5
-                                                                               (subtractInteger
-                                                                                  (multiplyInteger
-                                                                                     !2
-                                                                                     !2)
-                                                                                  (multiplyInteger
-                                                                                     2
-                                                                                     !5))))
-                                                                         !3))
-                                                                   (subtractInteger
-                                                                      (multiplyInteger
-                                                                         !1
-                                                                         !1)
-                                                                      (multiplyInteger
-                                                                         2
-                                                                         !4)))
-                                                                (modInteger
-                                                                   (multiplyInteger
-                                                                      (addInteger
-                                                                         (multiplyInteger
-                                                                            3
-                                                                            (multiplyInteger
-                                                                               !3
-                                                                               !3))
-                                                                         49)
-                                                                      (!7
-                                                                         (multiplyInteger
-                                                                            2
-                                                                            !1)
-                                                                         !8))
-                                                                   !8))
-                                                           , (constr 1 []) ])
-                                                        (modInteger !1 !7))
-                                                 , (constr 1 []) ]))
-                                           (!2 !2 (quotientInteger !1 2)))
                                       , (constr 0 [!5, !6]) ])
                                  (case
                                     (lessThanEqualsInteger 10 0)

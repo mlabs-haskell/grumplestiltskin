@@ -500,12 +500,11 @@ pecScale fieldModulus curveA scaleFactor point =
         pif
             (i #<= 1)
             point
-            ( plet (self #$ pquot # i # 2) $ \below ->
-                plet (pecDouble fieldModulus curveA below) $ \doubled ->
-                    pif
-                        ((prem # i # 2) #== 1)
-                        (pecAdd fieldModulus curveA doubled point)
-                        doubled
+            ( plet (pecDouble fieldModulus curveA (self #$ pquot # i # 2)) $ \doubled ->
+                pif
+                    ((prem # i # 2) #== 1)
+                    (pecAdd fieldModulus curveA doubled point)
+                    doubled
             )
 
 {- | Constructs the inverse of a point, such that for any @p@, @pecAdd

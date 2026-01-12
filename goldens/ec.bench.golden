@@ -1,5 +1,5 @@
 pecAdd {"exBudgetCPU":4997325,"exBudgetMemory":10861,"scriptSizeBytes":710}
-pecScale {"exBudgetCPU":22614637,"exBudgetMemory":55824,"scriptSizeBytes":783}
+pecScale {"exBudgetCPU":22470637,"exBudgetMemory":54924,"scriptSizeBytes":778}
 pecInvert {"exBudgetCPU":359408,"exBudgetMemory":1707,"scriptSizeBytes":116}
 pecDouble {"exBudgetCPU":4816986,"exBudgetMemory":10794,"scriptSizeBytes":230}
 pecToPoint {"exBudgetCPU":715630,"exBudgetMemory":2704,"scriptSizeBytes":143}
