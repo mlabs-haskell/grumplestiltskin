@@ -27,6 +27,7 @@ module Grumplestiltskin.EllipticCurve (
     pecDouble,
     pecScale,
     pecInvert,
+    pecOnCurve,
 
     -- ** Element to intermediate
     pecFromPoint,
@@ -45,7 +46,7 @@ import Plutarch.Internal.Term (S, Term, plet, punsafeCoerce)
 import Plutarch.Prelude (
     DeriveAsDataStruct (DeriveAsDataStruct),
     PAsData,
-    PBool,
+    PBool (PTrue),
     PBuiltinList,
     PBuiltinPair (PBuiltinPair),
     PData,
@@ -249,18 +250,6 @@ instance PTryFrom PData (PAsData PECPointData) where
         badY = "PTryFrom PECPointData: Unsuitable Y coordinate for given field order"
         notOnCurve :: Term s PString
         notOnCurve = "PTryFrom PECPointData: Specified point not on specified curve"
-        ponCurve ::
-            Term s PNatural ->
-            Term s PNatural ->
-            Term s PPositive ->
-            Term s PInteger ->
-            Term s PInteger ->
-            Term s PBool
-        ponCurve x y fieldOrder curveA curveB =
-            let fieldOrder' = pupcast @PInteger fieldOrder
-             in plet (pupcast (x #* x)) $ \xSquared ->
-                    let rhs = (pupcast x #* xSquared) #+ ((curveA #* xSquared) #+ curveB)
-                     in (pmod # pupcast (y #* y) # fieldOrder') #== (pmod # rhs # fieldOrder')
 
 {- | Given a @Data@-encoded curve point, \'unpacks\' its data and passes it to a
 user-provided handler. The handler arguments are, in order:
@@ -334,6 +323,23 @@ data PECPoint (s :: S)
           PlutusType
         )
         via (DeriveAsSOPStruct PECPoint)
+
+{- | Given a field order (as a 'PPositive') and @A@ and @B@ constants for an
+elliptic curve (both 'PInteger's), check if a 'PECPoint' is on that curve or
+not. The point at infinity is considered to be on every curve.
+
+@since 1.1.0
+-}
+pecOnCurve ::
+    forall (s :: S).
+    Term s PPositive ->
+    Term s PInteger ->
+    Term s PInteger ->
+    Term s PECPoint ->
+    Term s PBool
+pecOnCurve fieldOrder constantA constantB p = pmatch p $ \case
+    PECInfinity -> pcon PTrue
+    PECPoint x y -> ponCurve (pupcast x) (pupcast y) fieldOrder constantA constantB
 
 {- | An intermediate computation over an elliptic curve point. This type exists
 for efficiency: thus, you want to do all your calculations in
@@ -540,3 +546,16 @@ pgf3 = punsafeCoerce (3 :: Term s PInteger)
 -- Force a reduction by field modulus
 preduce :: forall (s :: S). Term s PPositive -> Term s PGFIntermediate -> Term s PGFIntermediate
 preduce modulus p = pgfFromElem $ pgfToElem p modulus
+
+ponCurve ::
+    Term s PNatural ->
+    Term s PNatural ->
+    Term s PPositive ->
+    Term s PInteger ->
+    Term s PInteger ->
+    Term s PBool
+ponCurve x y fieldOrder curveA curveB =
+    let fieldOrder' = pupcast @PInteger fieldOrder
+     in plet (pupcast (x #* x)) $ \xSquared ->
+            let rhs = (pupcast x #* xSquared) #+ ((curveA #* xSquared) #+ curveB)
+             in (pmod # pupcast (y #* y) # fieldOrder') #== (pmod # rhs # fieldOrder')

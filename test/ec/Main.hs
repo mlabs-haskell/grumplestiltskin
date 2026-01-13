@@ -15,6 +15,7 @@ import Grumplestiltskin.EllipticCurve (
     pecDouble,
     pecFromPoint,
     pecInvert,
+    pecOnCurve,
     pecScale,
     pecToPoint,
  )
@@ -86,6 +87,7 @@ main = do
             , goldenEval "pecToPoint" (pecToPoint curveModulus pointX)
             , goldenEval "pecFromPoint" (pecFromPoint pointX')
             , goldenEval "ptryFrom" (ptryFrom @(PAsData PECPointData) pointAsData fst)
+            , goldenEval "pecOnCurve" (pecOnCurve curveModulus curveA curveB pointX')
             ]
         ]
   where
@@ -116,6 +118,8 @@ main = do
     curveModulus = punsafeCoerce @_ @PInteger 170141183460469231731687303715884105727
     curveA :: forall (s :: S). Term s PInteger
     curveA = 49
+    curveB :: forall (s :: S). Term s PInteger
+    curveB = 7
     pointAsData :: forall (s :: S). Term s PData
     pointAsData =
         pconstant

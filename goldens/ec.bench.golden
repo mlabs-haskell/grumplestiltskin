@@ -6,3 +6,4 @@ pecDouble {"exBudgetCPU":4816986,"exBudgetMemory":10794,"scriptSizeBytes":230}
 pecToPoint {"exBudgetCPU":715630,"exBudgetMemory":2704,"scriptSizeBytes":143}
 pecFromPoint {"exBudgetCPU":144100,"exBudgetMemory":1000,"scriptSizeBytes":55}
 ptryFrom {"exBudgetCPU":5066257,"exBudgetMemory":22397,"scriptSizeBytes":527}
+pecOnCurve {"exBudgetCPU":1714413,"exBudgetMemory":5036,"scriptSizeBytes":112}

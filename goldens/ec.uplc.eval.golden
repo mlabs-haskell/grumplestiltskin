@@ -37,3 +37,4 @@ ptryFrom program
   1.1.0
   (Constr 1
      [I 170141183460469231731687303715884105727, I 49, I 7, I 337, I 6621])
+pecOnCurve program 1.1.0 False

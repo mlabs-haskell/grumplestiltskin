@@ -1027,3 +1027,22 @@ ptryFrom program
                 [!1, (force (!2 !3 (delay error)))]))
         (force trace))
      "ptryNatural: building with negative")
+pecOnCurve program
+  1.1.0
+  ((\!0 ->
+      case
+        (constr 0
+           [ 5243175449384122763440445208377245366
+           , 97081358726027661663585417664175721593 ])
+        [ (\!0 !0 ->
+             (\!0 ->
+                equalsInteger
+                  (modInteger (multiplyInteger !2 !2) !4)
+                  (modInteger
+                     (addInteger
+                        (multiplyInteger !3 !1)
+                        (addInteger (multiplyInteger 49 !1) 7))
+                     !4))
+               (multiplyInteger !2 !2))
+        , True ])
+     170141183460469231731687303715884105727)
