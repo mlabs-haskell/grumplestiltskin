@@ -154,6 +154,17 @@ intended field order (as a `PPositive`) and the intended curve's @A@ constant
 (as a `PInteger`) must be supplied as well. `pecScale` is implemented using
 [exponentiation by squaring][exponentiation-by-squaring].
 
+While in theory, `PAdditiveSemigroup`, `PAdditiveMonoid` and `PAdditiveGroup`
+would be a good interface for these operations, due to our choices about
+representation for `PECIntermediatePoint`, the methods provided by these type
+classes are unsuitable. More specifically, `PECIntermediatePoint` keeps both the
+@A@ constant of the curve the point is on, and the field order of the field used
+to define its co-ordinates, implicit, which means any operation that requires
+this information must be passed these two values explicitly. However, the type
+classes mentioned above do not allow passing any additional data, thus forcing
+us to define these operations as dedicated functions instead. We discuss our
+reasoning behind these choices in the 'Alternatives considered' section.
+
 ## Alternatives considered
 
 [TODO: Fill in]
