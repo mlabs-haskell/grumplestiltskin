@@ -22,6 +22,7 @@ import Plutarch.Internal.Term (Config (NoTracing))
 import Plutarch.Prelude (
     PAsData,
     PBool,
+    PData,
     PInteger,
     PNatural,
     PPositive,
@@ -51,6 +52,7 @@ import Plutarch.Prelude (
 import Plutarch.Test.Golden (goldenEval, plutarchGolden)
 import Plutarch.Test.Utils (precompileTerm)
 import Plutarch.Unsafe (punsafeCoerce)
+import PlutusCore.Data qualified as Plutus
 import Test.QuickCheck (
     Gen,
     Property,
@@ -108,6 +110,7 @@ main = do
             , goldenEval "pscaleInteger negative" (pscaleInteger psampleInter (-700))
             , goldenEval "pgfToElem reduced" (pgfToElem psampleInter p25519)
             , goldenEval "pgfToElem not reduced" (pgfToElem psampleInterHuge p25519)
+            , goldenEval "ptryFrom" (ptryFrom @(PAsData PGFElementData) psampleAsData fst)
             ]
         ]
   where
@@ -315,6 +318,15 @@ psample = pgfFromPNatural phuge p25519
 
 psampleData :: forall (s :: S). Term s PGFElementData
 psampleData = pgfToData psample p25519
+
+psampleAsData :: forall (s :: S). Term s PData
+psampleAsData =
+    pconstant
+        ( Plutus.List
+            [ Plutus.I 57896044618658097711785492504343953926634992332820282019728792003956564819948
+            , Plutus.I 57896044618658097711785492504343953926634992332820282019728792003956564819949
+            ]
+        )
 
 psampleDataEvaluated :: forall (s :: S). Term s PGFElementData
 psampleDataEvaluated = evalTerm' NoTracing psampleData

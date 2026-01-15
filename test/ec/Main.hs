@@ -10,16 +10,21 @@ import GenCurve (GenCurvePoints (GenCurvePoints))
 import Grumplestiltskin.EllipticCurve (
     PECIntermediatePoint (PECIntermediateInfinity, PECIntermediatePoint),
     PECPoint (PECInfinity),
-    paddPoints,
-    pinvPoint,
-    ppointDouble,
-    pscalePoint,
-    ptoPoint,
+    PECPointData,
+    pecAdd,
+    pecDouble,
+    pecFromPoint,
+    pecInvert,
+    pecOnCurve,
+    pecScale,
+    pecToPoint,
  )
 import Plutarch.Evaluate (evalTerm')
 import Plutarch.Internal.Term (Config (NoTracing), Term, punsafeCoerce)
 import Plutarch.Prelude (
+    PAsData,
     PBool,
+    PData,
     PInteger,
     PPositive,
     S,
@@ -30,6 +35,7 @@ import Plutarch.Prelude (
     plam,
     plet,
     plift,
+    ptryFrom,
     (#),
     (#*),
     (#+),
@@ -39,6 +45,7 @@ import Plutarch.Prelude (
 import Plutarch.Test.Golden (goldenEval, plutarchGolden)
 import Plutarch.Test.Unit (testEvalEqual)
 import Plutarch.Test.Utils (precompileTerm)
+import PlutusCore.Data qualified as Plutus
 import Test.QuickCheck (Property, arbitrary, forAllShrinkShow, shrink)
 import Test.Tasty (TestTree, adjustOption, defaultMain, testGroup)
 import Test.Tasty.QuickCheck (QuickCheckMaxSize, QuickCheckTests, testProperty)
@@ -56,25 +63,31 @@ main = do
         , adjustOption moreTests $
             testGroup
                 "Case 2: properties"
-                [ testProperty "paddPoints associates" propAssocAdd
-                , testProperty "paddPoints commutes" propCommAdd
+                [ testProperty "pecAdd associates" propAssocAdd
+                , testProperty "pecAdd commutes" propCommAdd
                 , testProperty "p - p = point at infinity" propAdditionOfNegatedPoint
-                , testProperty "point at infinity is an identity for paddPoints" propIdentityAdd
-                , testProperty "ppointDouble x = paddPoints x x" propDoubleAdd
-                , testProperty "pscalePoint p 0 = point at infinity" propScaleZero
-                , testProperty "pscalePoint p 1 = p" propScaleOne
-                , testProperty "pscalePoint p -1 = invPoint p" propScaleNegOne
-                , adjustOption (smallerTests 2) $ testProperty "paddPoints (pscalePoint p n) (pscalePoint p m) = pscalePoint p (n + m)" propScaleAdd
-                , adjustOption (smallerTests 4) $ testProperty "pscalePoint (pscalePoint p n) m = pscalePoint p (n * m)" propScaleMul
+                , testProperty "point at infinity is an identity for pecAdd" propIdentityAdd
+                , testProperty "pecDouble x = pecAdd x x" propDoubleAdd
+                , testProperty "pecScale p 0 = point at infinity" propScaleZero
+                , testProperty "pecScale p 1 = p" propScaleOne
+                , testProperty "pecScale p -1 = invPoint p" propScaleNegOne
+                , adjustOption (smallerTests 2) $ testProperty "pecAdd (pecScale p n) (pecScale p m) = pecScale p (n + m)" propScaleAdd
+                , adjustOption (smallerTests 4) $ testProperty "pecScale (pecScale p n) m = pecScale p (n * m)" propScaleMul
+                , testProperty "pecToPoint n = pecToPoint n . pecFromPoint . pecToPoint n" propToFromPoint
+                , testProperty "(x + x) + y = x + (x + y)" propAssocSpecial
                 ]
         , plutarchGolden
-            "Case 3: goldens over y^2 = x^3 + 49x^2 + 9 (mod 2^127 - 1)"
+            "Case 3: goldens over y^2 = x^3 + 49x^2 + 7 (mod 2^127 - 1)"
             "ec"
-            [ goldenEval "paddPoints" (paddPoints curveModulus curveA pointX pointY)
-            , goldenEval "pscalePoint" (pscalePoint curveModulus curveA 10 point)
-            , goldenEval "pinvPoint" (pinvPoint pointX)
-            , goldenEval "ppointDouble" (ppointDouble curveModulus curveA pointX)
-            , goldenEval "ptoPoint" (ptoPoint curveModulus pointX)
+            [ goldenEval "pecAdd" (pecAdd curveModulus curveA pointX pointY)
+            , goldenEval "pecScale" (pecScale curveModulus curveA 10 point)
+            , goldenEval "pecScale negative" (pecScale curveModulus curveA (-10) point)
+            , goldenEval "pecInvert" (pecInvert pointX)
+            , goldenEval "pecDouble" (pecDouble curveModulus curveA pointX)
+            , goldenEval "pecToPoint" (pecToPoint curveModulus pointX)
+            , goldenEval "pecFromPoint" (pecFromPoint pointX')
+            , goldenEval "ptryFrom" (ptryFrom @(PAsData PECPointData) pointAsData fst)
+            , goldenEval "pecOnCurve" (pecOnCurve curveModulus curveA curveB pointX')
             ]
         ]
   where
@@ -83,7 +96,7 @@ main = do
         testEvalEqual
             ("Point after " <> show i <> " successors")
             (nsucc $ fromIntegral i)
-            (ptoPoint fieldModulus p)
+            (pecToPoint fieldModulus p)
     -- Note (Koz, 17/12/2025): The additive and multiplicative properties of scaling end
     -- up creating huge cases that take forever to run. Thus, we have to limit the
     -- size of the `n` and `m` we use to keep this under control.
@@ -92,19 +105,64 @@ main = do
     -- Note (Koz, 17/12/2025): By default, QuickCheck only runs 100 tests, which
     -- is far too few to be useful. Thus, we increase the count.
     moreTests :: QuickCheckTests -> QuickCheckTests
-    moreTests = max 1000
+    moreTests = max 100_000
     point :: forall (s :: S). Term s PECIntermediatePoint
     point = createPoint 337 6621
     pointX :: forall (s :: S). Term s PECIntermediatePoint
-    pointX = evalTerm' NoTracing (pscalePoint curveModulus curveA (-5) point)
+    pointX = evalTerm' NoTracing (pecScale curveModulus curveA (-5) point)
+    pointX' :: forall (s :: S). Term s PECPoint
+    pointX' = evalTerm' NoTracing (pecToPoint curveModulus pointX)
     pointY :: forall (s :: S). Term s PECIntermediatePoint
-    pointY = evalTerm' NoTracing (pscalePoint curveModulus curveA 13 point)
+    pointY = evalTerm' NoTracing (pecScale curveModulus curveA 13 point)
     curveModulus :: forall (s :: S). Term s PPositive
     curveModulus = punsafeCoerce @_ @PInteger 170141183460469231731687303715884105727
     curveA :: forall (s :: S). Term s PInteger
     curveA = 49
+    curveB :: forall (s :: S). Term s PInteger
+    curveB = 7
+    pointAsData :: forall (s :: S). Term s PData
+    pointAsData =
+        pconstant
+            ( Plutus.Constr
+                1
+                [ Plutus.I 170141183460469231731687303715884105727
+                , Plutus.I 49
+                , Plutus.I 7
+                , Plutus.I 337
+                , Plutus.I 6621
+                ]
+            )
 
 -- Properties
+
+propAssocSpecial :: Property
+propAssocSpecial = forAllShrinkShow (arbitrary @(GenCurvePoints 2)) shrink show $ \(GenCurvePoints order constantA _ points) ->
+    let (x1, y1) = Vector.index' points (Proxy @0)
+        (x2, y2) = Vector.index' points (Proxy @1)
+     in plift
+            ( precompileTerm (plam go)
+                # pconstant (fromIntegral x1)
+                # pconstant (fromIntegral y1)
+                # pconstant (fromIntegral x2)
+                # pconstant (fromIntegral y2)
+                # pconstant (fromIntegral order)
+                # pconstant (fromIntegral constantA)
+            )
+  where
+    go ::
+        forall (s :: S).
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PBool
+    go x1 y1 x2 y2 order constantA = plet (createPoint x1 y1) $ \p1 ->
+        plet (createPoint x2 y2) $ \p2 ->
+            let order' = punsafeCoerce order
+             in pecToPoint order' (pecAdd order' constantA (pecAdd order' constantA p1 p1) p2)
+                    #== pecToPoint order' (pecAdd order' constantA p1 (pecAdd order' constantA p1 p2))
 
 propAssocAdd :: Property
 propAssocAdd = forAllShrinkShow (arbitrary @(GenCurvePoints 3)) shrink show $ \(GenCurvePoints order constantA _ points) ->
@@ -138,8 +196,8 @@ propAssocAdd = forAllShrinkShow (arbitrary @(GenCurvePoints 3)) shrink show $ \(
         plet (createPoint x2 y2) $ \p2 ->
             plet (createPoint x3 y3) $ \p3 ->
                 let order' = punsafeCoerce order
-                 in ptoPoint order' (paddPoints order' constantA p1 (paddPoints order' constantA p2 p3))
-                        #== ptoPoint order' (paddPoints order' constantA (paddPoints order' constantA p1 p2) p3)
+                 in pecToPoint order' (pecAdd order' constantA p1 (pecAdd order' constantA p2 p3))
+                        #== pecToPoint order' (pecAdd order' constantA (pecAdd order' constantA p1 p2) p3)
 
 propAdditionOfNegatedPoint :: Property
 propAdditionOfNegatedPoint = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $ \(GenCurvePoints order constantA _ points) ->
@@ -161,7 +219,7 @@ propAdditionOfNegatedPoint = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) sh
         Term s PBool
     go x1 y1 order constantA = plet (createPoint x1 y1) $ \p1 ->
         let order' = punsafeCoerce order
-         in ptoPoint order' (paddPoints order' constantA p1 (pinvPoint p1))
+         in pecToPoint order' (pecAdd order' constantA p1 (pecInvert p1))
                 #== pcon PECInfinity
 
 propCommAdd :: Property
@@ -190,8 +248,8 @@ propCommAdd = forAllShrinkShow (arbitrary @(GenCurvePoints 2)) shrink show $ \(G
     go x1 y1 x2 y2 order constantA = plet (createPoint x1 y1) $ \p1 ->
         plet (createPoint x2 y2) $ \p2 ->
             let order' = punsafeCoerce order
-             in ptoPoint order' (paddPoints order' constantA p1 p2)
-                    #== ptoPoint order' (paddPoints order' constantA p2 p1)
+             in pecToPoint order' (pecAdd order' constantA p1 p2)
+                    #== pecToPoint order' (pecAdd order' constantA p2 p1)
 
 propDoubleAdd :: Property
 propDoubleAdd = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $ \(GenCurvePoints order constantA _ points) ->
@@ -213,8 +271,8 @@ propDoubleAdd = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $ \
         Term s PBool
     go x y order constantA = plet (createPoint x y) $ \p ->
         let order' = punsafeCoerce order
-         in ptoPoint order' (ppointDouble order' constantA p)
-                #== ptoPoint order' (paddPoints order' constantA p p)
+         in pecToPoint order' (pecDouble order' constantA p)
+                #== pecToPoint order' (pecAdd order' constantA p p)
 
 propIdentityAdd :: Property
 propIdentityAdd = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $ \(GenCurvePoints order constantA _ points) ->
@@ -236,8 +294,8 @@ propIdentityAdd = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $
         Term s PBool
     go x y order constantA = plet (createPoint x y) $ \p ->
         let order' = punsafeCoerce order
-         in ptoPoint order' (paddPoints order' constantA p (pcon PECIntermediateInfinity))
-                #== ptoPoint order' p
+         in pecToPoint order' (pecAdd order' constantA p (pcon PECIntermediateInfinity))
+                #== pecToPoint order' p
 
 propScaleZero :: Property
 propScaleZero = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $ \(GenCurvePoints order constantA _ points) ->
@@ -259,7 +317,7 @@ propScaleZero = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $ \
         Term s PBool
     go x y order constantA = plet (createPoint x y) $ \p ->
         let order' = punsafeCoerce order
-         in ptoPoint order' (pscalePoint order' constantA 0 p)
+         in pecToPoint order' (pecScale order' constantA 0 p)
                 #== pcon PECInfinity
 
 propScaleOne :: Property
@@ -282,8 +340,8 @@ propScaleOne = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $ \(
         Term s PBool
     go x y order constantA = plet (createPoint x y) $ \p ->
         let order' = punsafeCoerce order
-         in ptoPoint order' (pscalePoint order' constantA 1 p)
-                #== ptoPoint order' p
+         in pecToPoint order' (pecScale order' constantA 1 p)
+                #== pecToPoint order' p
 
 propScaleNegOne :: Property
 propScaleNegOne = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $ \(GenCurvePoints order constantA _ points) ->
@@ -305,8 +363,8 @@ propScaleNegOne = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $
         Term s PBool
     go x y order constantA = plet (createPoint x y) $ \p ->
         let order' = punsafeCoerce order
-         in ptoPoint order' (pscalePoint order' constantA (-1) p)
-                #== ptoPoint order' (pinvPoint p)
+         in pecToPoint order' (pecScale order' constantA (-1) p)
+                #== pecToPoint order' (pecInvert p)
 
 propScaleAdd :: Property
 propScaleAdd = forAllShrinkShow (arbitrary @(GenCurvePoints 1, Integer, Integer)) shrink show $
@@ -333,8 +391,8 @@ propScaleAdd = forAllShrinkShow (arbitrary @(GenCurvePoints 1, Integer, Integer)
         Term s PBool
     go x y order constantA n m = plet (createPoint x y) $ \p ->
         let order' = punsafeCoerce order
-         in ptoPoint order' (paddPoints order' constantA (pscalePoint order' constantA n p) (pscalePoint order' constantA m p))
-                #== ptoPoint order' (pscalePoint order' constantA (n #+ m) p)
+         in pecToPoint order' (pecAdd order' constantA (pecScale order' constantA n p) (pecScale order' constantA m p))
+                #== pecToPoint order' (pecScale order' constantA (n #+ m) p)
 
 propScaleMul :: Property
 propScaleMul = forAllShrinkShow (arbitrary @(GenCurvePoints 1, Integer, Integer)) shrink show $
@@ -361,8 +419,29 @@ propScaleMul = forAllShrinkShow (arbitrary @(GenCurvePoints 1, Integer, Integer)
         Term s PBool
     go x y order constantA n m = plet (createPoint x y) $ \p ->
         let order' = punsafeCoerce order
-         in ptoPoint order' (pscalePoint order' constantA m (pscalePoint order' constantA n p))
-                #== ptoPoint order' (pscalePoint order' constantA (n #* m) p)
+         in pecToPoint order' (pecScale order' constantA m (pecScale order' constantA n p))
+                #== pecToPoint order' (pecScale order' constantA (n #* m) p)
+
+propToFromPoint :: Property
+propToFromPoint = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $
+    \(GenCurvePoints order _ _ points) ->
+        let (x, y) = Vector.index' points (Proxy @0)
+         in plift
+                ( precompileTerm (plam go)
+                    # pconstant (fromIntegral x)
+                    # pconstant (fromIntegral y)
+                    # pconstant (fromIntegral order)
+                )
+  where
+    go ::
+        forall (s :: S).
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PBool
+    go x y order = plet (pcon $ PECIntermediatePoint (punsafeCoerce x) (punsafeCoerce y)) $ \p ->
+        let order' = punsafeCoerce order
+         in pecToPoint order' p #== (pecToPoint order' . pecFromPoint . pecToPoint order' $ p)
 
 -- Helpers
 
@@ -396,7 +475,7 @@ nsucc i = go # pconstant i
     go =
         precompileTerm
             ( plam $ \steps ->
-                ptoPoint fieldModulus (pfix (\self -> plam $ \acc remaining -> pif (remaining #== 0) acc (self # paddPoints fieldModulus 0 acc generatorPoint # (remaining - 1))) # generatorPoint # steps)
+                pecToPoint fieldModulus (pfix (\self -> plam $ \acc remaining -> pif (remaining #== 0) acc (self # pecAdd fieldModulus 0 acc generatorPoint # (remaining - 1))) # generatorPoint # steps)
             )
 
 createPoint :: Term s PInteger -> Term s PInteger -> Term s PECIntermediatePoint

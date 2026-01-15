@@ -79,6 +79,7 @@ test-suite galois
   type:           exitcode-stdio-1.0
   main-is:        Main.hs
   hs-source-dirs: test/galois
+  build-depends:  plutus-core
 
 test-suite ec
   import:         test-lang
@@ -87,6 +88,7 @@ test-suite ec
   other-modules:  GenCurve
   build-depends:
     , indexed-traversable
+    , plutus-core
     , vector-sized
 
   hs-source-dirs: test/ec

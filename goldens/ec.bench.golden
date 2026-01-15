@@ -1,5 +1,9 @@
-paddPoints {"exBudgetCPU":4997325,"exBudgetMemory":10861,"scriptSizeBytes":710}
-pscalePoint {"exBudgetCPU":22614637,"exBudgetMemory":55824,"scriptSizeBytes":783}
-pinvPoint {"exBudgetCPU":359408,"exBudgetMemory":1707,"scriptSizeBytes":116}
-ppointDouble {"exBudgetCPU":4816986,"exBudgetMemory":10794,"scriptSizeBytes":230}
-ptoPoint {"exBudgetCPU":715630,"exBudgetMemory":2704,"scriptSizeBytes":143}
+pecAdd {"exBudgetCPU":4997325,"exBudgetMemory":10861,"scriptSizeBytes":710}
+pecScale {"exBudgetCPU":22121638,"exBudgetMemory":53721,"scriptSizeBytes":759}
+pecScale negative {"exBudgetCPU":23333778,"exBudgetMemory":58136,"scriptSizeBytes":767}
+pecInvert {"exBudgetCPU":359408,"exBudgetMemory":1707,"scriptSizeBytes":116}
+pecDouble {"exBudgetCPU":4816986,"exBudgetMemory":10794,"scriptSizeBytes":230}
+pecToPoint {"exBudgetCPU":715630,"exBudgetMemory":2704,"scriptSizeBytes":143}
+pecFromPoint {"exBudgetCPU":144100,"exBudgetMemory":1000,"scriptSizeBytes":55}
+ptryFrom {"exBudgetCPU":5066257,"exBudgetMemory":22397,"scriptSizeBytes":527}
+pecOnCurve {"exBudgetCPU":1714413,"exBudgetMemory":5036,"scriptSizeBytes":112}
