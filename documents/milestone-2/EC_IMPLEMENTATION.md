@@ -83,8 +83,7 @@ the curve whose constants are specified. These constraints are defined and
 checked in the decoding logic of the `PTryFrom` instance for `PECPointData`.
 
 We chose not to make use of `PGFElementData`, as this would effectively store
-the field order twice, redundantly. [TODO: Maybe remove that field from
-`PGFElementData` then?]
+the field order twice, redundantly. 
 
 ## Functions
 
@@ -92,7 +91,9 @@ There are two categories of functions for the data types defined in
 `Grumplestiltskin.EllipticCurve`. First, there are conversion functions, which
 handle conversions between the individual data types and help maintain their
 specific invariants. Second, there are functions related to the elliptic curve
-group operations. 
+group operations. We also provide a function to verify whether a given point is
+on a given curve, as `pecOnCurve`; as this capability is fairly straightforward,
+we won't discuss it further.
 
 ### Conversions 
 
@@ -167,9 +168,184 @@ reasoning behind these choices in the 'Alternatives considered' section.
 
 ## Alternatives considered
 
-[TODO: Fill in]
+There are a range of possibilities, both from a high-level design perspective
+and a lower-level implementation perspective, that we could have taken when
+implementing the functionality of this Milestone. At the high level, a major
+consideration was the type of coordinate system to use for elliptic curve
+points, as a range of options exist. At the implementation level, we had to make
+decisions around representations for any given chosen coordinate system, as well
+as similar tradeoffs to Milestone 1 in terms of intermediate types and explicit
+representation of elliptic curve constants. Lastly, our choices ended up making
+the use of `PAdditiveGroup` and similar impossible: we will discuss our choices
+here and why we ultimately decided that the less-pleasant interface was a
+worthwhile tradeoff.
+
+### Curve point representation
+
+One major choice we had to make was the choice of coordinate system to use for
+curve points, as this would ultimately determine both what specific data we
+would have to represent for any given point, as well as how group operations
+would be implemented. There are several options:
+
+* _Affine_, where only the two field elements (representing the `x`
+  and `y` coordinates of the curve) are used. The point at infinity requires
+  special treatment here.
+* _Projective_, where an additional field element (the projective `z`) is used.
+  This allows representing the point at infinity directly.
+* _Jacobian_, which uses an additional field element similar to projective
+  coordinates, but in a different way.
+* _Chudnovsky-Jacobian_, which precomputes two exponents of the projective `z`
+  used in many computations in the Jacobian representation.
+* _Modified Jacobian_, which precomputes an exponent of the projective `z`
+  multiplied by one of the curve constants.
+
+Some noteworthy constraints and features of the chain, as well as Milestone 1's
+implementation of field elements, that influenced our choice are as follows:
+
+* All other things being equal, representations of points must be as small as
+  possible, due to onchain memory limits.
+* Precomputation is generally not feasible, both due to onchain space limits and
+  the necessity of representing, and operating over, points on an arbitrary
+  curve.
+* Finding inverses of field elements is (relatively) inexpensive, thanks to the
+  `ExpModInteger` builtin.
+* Smaller code is preferable to avoid the transaction size limit becoming an
+  issue.
+
+To better conceptualize the choices that were put to us when choosing an
+implementation, let us consider the costs of additions and doublings in each of
+these representations, as all other operations ultimately depend on these. We
+will base our descriptions on the algorithm descriptions provided by the _Handbook 
+of Elliptic and Hyperelliptic Curve Cryptography_, as these would form the core
+of any implementation, regardless of language or chosen representation. We will
+describe the operations in terms of inversions (`I`), multiplications of field
+elements (`M`) and squarings of field elements (`S`). We will assume that
+operations over arguments in a particular representation produce results in the
+same representation.
+
+| Operation | Affine cost | Projective cost | Jacobian cost | Chudnovsky-Jacobian cost | Modified Jacobian cost |
+|---|---|---|---|---|---|
+| Addition of points | `I + 2M + 2S` | `12M + 2S` | `12M + 4S` | `11M + 3S` | `13M + 6S` |
+| Doubling of point | `I + 2M + 2S` | `7M + 5S` | `4M + 6S` | `5M + 6S` | `4M + 4S` |
+
+From this, we can see that all the non-affine representations essentially seek
+to avoid finding any inverses. However, if we assume that these operations are
+of essentially equal cost (as they are for us onchain) and re-examine these only
+in terms of operation counts, the difference is striking:
+
+| Operation | Affine cost | Projective cost | Jacobian cost | Chudnovsky-Jacobian cost | Modified Jacobian cost |
+|---|---|---|---|---|---|
+| Addition of points | 5 | 14 | 16 | 14 | 18 |
+| Doubling of point | 5 | 12 | 10 | 11 | 8 |
+
+In essentially all cases, using any representation other than the affine one
+would significantly increase the amount of code (and work). This suggests affine
+coordinates are the correct choice. The _Handbook_ supports our decision: in
+situations where precomputations are unfeasible (as is the case with us),
+Section 13.3.3 states the use of affine coordinates as the correct choice.
+
+### Representation of elliptic curve points
+
+Given our choice of affine coordinates, we require a sum type, as the point at
+infinity cannot be represented as an affine coordinate. Setting `Data` encodings
+aside for now, we are left with essentially two choices:
+
+* A direct representation as an SOP encoding; or
+* A [Boehm-Berrarducci encoding][bb].
+
+Additionally, similarly to Milestone 1, we must consider whether auxiliary
+information (field order and the curve constants) should be embedded in the
+point's representation, or left implicit. Unlike in Milestone 1, this choice is
+significant with regard to the interface over computations. With Galois fields,
+a lot of operations (at least over the intermediate form) could be defined
+without needing any information about field order; in the case of elliptic
+curves, both addition and doubling require us knowing both the field order and
+the curve's `a` constant in order to implement the operation at all. 
+
+This essentially leaves the following possible combinations:
+
+* Direct, implicit (what we chose)
+* Direct, explicit
+* Boehm-Berrarducci, implicit
+* Boehm-Berrarducci, explicit
+
+For clarity, we also provide the code that these representations would use. We
+will use `FE` as a placeholder for the field element type.
+
+```haskell
+data DirectImplicit (s :: S) = 
+    DIInfinity | 
+    DIPoint (Term s FE) (Term s FE)
+
+data DirectExplicit (s :: S) = 
+    DEInfinity |
+    DEPoint (Term s PPositive) (Term s PInteger) (Term s PInteger) (Term s FE) (Term s FE)
+
+newtype BBImplicit (s :: S) = BBImplicit (
+    forall (r :: S -> Type) .
+    Term s (r :--> (FE :--> FE :--> r) :--> r)
+    )
+
+newtype BBExplicit (s :: S) = BBExplicit (
+    forall (r :: S -> Type) . 
+    Term s (r :--> (PPositive :--> PInteger :--> PInteger :--> FE :--> FE :--> r) :--> r)
+    )
+```
+
+[TODO: Write]
+
+## Limitations and potential improvements
+
+[TODO: Intro]
+
+## Builtin arrays
+
+One recent change in UPLC (specifically the implementation of [CIP-138
+arrays][cip-138]) could have potentially been useful to us as a representation
+of elliptic curve points. Our choice of SOP representation is forced on us due
+to the double inefficiency of builtin lists as representations of tuples: not
+only do they require more memory, their lack of random access makes them a bad
+choice for most operations that elliptic curve points would require. Builtin
+arrays theoretically solve both problems, as they are more compact and also have
+constant-time indexing as a builtin operation.
+
+However, limitations in the interface provided by CIP-138 meant that builtin
+UPLC arrays as they are would not have been viable. More precisely, we lack any
+built-in capabilities to transform arrays directly: every array transformation
+must be done by first converting to a builtin list, applying the transformation
+on the result, then converting back. This would completely defeat the point of
+using CIP-138 arrays in the first place, as we would be incurring even higher
+overheads than using builtin lists directly. While Plutarch's recent [pull
+arrays][pull-array] could potentially have reduced some of the overheads, they
+ultimately aren't sufficient, as many of the operations required are not linear
+transformations. To see why, consider addition of two points in affine
+coordinates `P = x1, y1` and `Q = x2, y2`. Assuming `P /= Q` and `P /= -Q`, we
+have the following calculation:
+
+```
+let lambda = (y1 - y2) * recip (x1 - x2)
+    x3 = lambda * lambda - x1 - x2
+    y3 = lambda * (x1 - x3) - y1
+  in x3, y3
+```
+
+We can see that `y3` depends on `x3`, which means that any array-based
+representation of elliptic curve points could not perform this operation as a
+linear transformation. Other representation choices suffer from similar issues.
+At the same time, in languages with more capable array-based APIs, use of arrays
+as representations for elliptic curve points (together with alternative
+representations to speed up computations) are standard: for example,
+[`elliptic-curve-solidity`][ec-solidity] uses the Jacobian form with arrays.
+
+In order to enable such improvements, the API provided by CIP-138 would need
+fundamental extensions. [TODO: Which?]
+
+[TODO: Write]
 
 [elliptic-curve]: https://en.wikipedia.org/wiki/Elliptic_curve
 [exponentiation-by-squaring]: https://en.wikipedia.org/wiki/Exponentiation_by_squaring
 [galois-field]: https://en.wikipedia.org/wiki/Finite_field
-
+[bb]: https://okmij.org/ftp/tagless-final/course/Boehm-Berarducci.html
+[cip-138]: https://cips.cardano.org/cip/CIP-138
+[pull-array]: https://www.mlabs.city/blog/performance-pull-arrays-and-plutarch
+[ec-solidity]: https://github.com/witnet/elliptic-curve-solidity/blob/master/contracts/EllipticCurve.sol
