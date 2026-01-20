@@ -180,7 +180,7 @@ the use of `PAdditiveGroup` and similar impossible: we will discuss our choices
 here and why we ultimately decided that the less-pleasant interface was a
 worthwhile tradeoff.
 
-### Curve point representation
+### Curve point coordinate system
 
 One major choice we had to make was the choice of coordinate system to use for
 curve points, as this would ultimately determine both what specific data we
@@ -292,11 +292,30 @@ newtype BBExplicit (s :: S) = BBExplicit (
     )
 ```
 
-[TODO: Write]
+Considering the relative advantages and disadvantages of each choice, we can
+immediately discard the direct explicit, and Boehm-Berrarducci implicit,
+choices. While explicit representations (in either form) would allow us a more
+convenient interface, the direct explicit representation is far too large to be
+practical. For Boehm-Berrarducci forms (which are essentially lambdas), the
+problem of size is not significant, which means that accepting the downsides of
+implicit representations doesn't make sense. Thus, our choice came down to
+direct implicit or Boehm-Berrarducci explicit, as the possible representations.
+
+On paper, the explicit Boehm-Berrarducci representation is attractive: it is
+compact, suits long computation chains (as it eliminates intermediate values),
+allows the use of the `PAdditiveGroup` interface, and as we don't require
+'accessor'-style operations, the biggest downside of a final encoding doesn't
+affect us. However, this approach turned out to be untenable, as performance of
+the explicit Boehm-Berrarducci form is unacceptably bad. We discuss this in more
+detail in the 'Limitations and potential improvements' section, but in brief, it
+is a problem we cannot avoid in general. Thus, only the direct implicit choice
+remains, as performance must win out in general.
 
 ## Limitations and potential improvements
 
-[TODO: Intro]
+Some of the limitations we encountered stem from missing functionality onchain.
+We describe these problems here, as well as discussing what improvements we
+would need to overcome these limitations.
 
 ## Builtin arrays
 
@@ -338,9 +357,75 @@ representations to speed up computations) are standard: for example,
 [`elliptic-curve-solidity`][ec-solidity] uses the Jacobian form with arrays.
 
 In order to enable such improvements, the API provided by CIP-138 would need
-fundamental extensions. [TODO: Which?]
+fundamental extensions. Two specific requirements are:
 
-[TODO: Write]
+* Constructing builtin arrays directly (rather than by way of converting a
+  builtin list); and
+* An efficient way to perform non-linear transformations on arrays.
+
+## Proper laziness
+
+One major obstacle to our use of Boehm-Berrarducci forms stems from 'auxiliary
+values', such as field order and curve constants. These are 'carried around' by
+the data types, but don't change _within_ a computation. We are forced to make
+them parameters, as Grumplestiltskin's stated goal is to support computations
+over arbitrary Galois fields and elliptic curves. However, this leads to a
+problem of excessive evaluation, which cannot be avoided with currently
+available UPLC primitives.
+
+This problem can manifest itself in very subtle ways. Consider the group
+operation for curve points: if either argument curve point is the point at
+infinity, we produce the other argument, as the point at infinity is the neutral
+element. Ideally, in such a case, we would simply return the argument in
+question unchanged, but in a Boehm-Berrarducci form, to even _establish_ this
+requires calling the argument's continuation. Thus, if we assume the
+continuation of the group operation result provides `whenInf` and `whenNot`
+handlers, and we have argument continuations `k1` and `k2`, we are forced to
+write something like
+
+```haskell
+k1 (k2 whenInf whenNot) $ \x1 y1 order curveA curveB -> 
+    k2 (k1 whenInf whenNot) $ \x2 y2 _ _ _ -> 
+        -- rest of the computation
+```
+
+As UPLC is strict, the resulting computation ends up evaluating far more than it
+should: we are forced to evaluate `k2 whenInf whenNot` every time (even if's not
+used), and if the first argument point is not the point at infinity, we are
+forced to evaluate `k1 whenInf whenNot` even if the second point is not the
+point at infinity either! The only way we can attempt to resolve this is by
+using `Delay` and `Force` constructions from UPLC, which would require us to
+change our Plutarch data type to something akin to the following:
+
+```haskell
+newtype BBExplicit' (s :: S) = BBExplicit' (
+    forall (r :: S -> Type) . 
+    Term s (PDelayed r :--> (PPositive :--> PInteger :--> PInteger :--> FE :--> FE :--> r) :--> r)
+    )
+```
+
+However, this solution merely kicks the problem down the road. As `Delay`ed
+computations in UPLC have no 'memory' of being evaluated, every `Force` is
+required to recompute it, even if the computation is referentially transparent.
+In our case, this could mean re-evaluating a potentially large chain of
+computations we have 'built up' over time repeatedly, even though the answer
+never changes. This means we must take a performance penalty no matter what we
+do.
+
+Notably, in a non-strict language like Haskell, this problem does not arise, as
+if a continuation call is never needed, it won't be evaluated, rendering the
+problem above essentially impossible. However, GHC Haskell contains provisions
+for not re-evaluating lazy computations after the first time they are demanded,
+essentially making it a '`Force` with memory'. No such construction exists in
+UPLC, and while in specific cases it could be simulated with existing
+mechanisms, in general, it is not possible.
+
+To resolve this performance problem (and indeed, what prevented us from using
+the Boehm-Berrarducci approach in the first place) would require a proper
+treatment of laziness in UPLC. Ideally, something akin to [promises][promise]
+would work here, effectively providing a 'boxed computation' type which has the
+ability to cache the result of that computation for future requests for the
+answer.
 
 [elliptic-curve]: https://en.wikipedia.org/wiki/Elliptic_curve
 [exponentiation-by-squaring]: https://en.wikipedia.org/wiki/Exponentiation_by_squaring
@@ -349,3 +434,4 @@ fundamental extensions. [TODO: Which?]
 [cip-138]: https://cips.cardano.org/cip/CIP-138
 [pull-array]: https://www.mlabs.city/blog/performance-pull-arrays-and-plutarch
 [ec-solidity]: https://github.com/witnet/elliptic-curve-solidity/blob/master/contracts/EllipticCurve.sol
+[promises]: https://en.wikipedia.org/wiki/Futures_and_promises
