@@ -13,6 +13,7 @@ TIO = "TIO"
 frst = "frst"
 PN = "PN"
 anc = "anc"
+fo = "fo"
 
 [type.pdf]
 extend-glob = ["*.pdf"]

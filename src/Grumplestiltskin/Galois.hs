@@ -1,10 +1,10 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
--- Note (Koz, 19/08/2025): Needed until we add some PTryFrom instances to
--- Plutarch.
-{-# OPTIONS_GHC -Wno-orphans #-}
 
--- | @since 1.0.0
+{- | Finite fields.
+
+@since 1.0.0
+-}
 module Grumplestiltskin.Galois (
     -- * Types
 
@@ -77,34 +77,29 @@ import Plutarch.Prelude (
     PNatural,
     POrd,
     PPositive,
+    PShow,
     PTryFrom (ptryFrom'),
     PlutusType,
     S,
     Term,
-    pasInt,
     pasList,
     pcon,
     pconstant,
     pdata,
-    perror,
     pfromData,
     pheadBuiltin,
+    pheadTailBuiltin,
     phoistAcyclic,
     pif,
     plam,
     plet,
     pmatch,
     pmod,
-    ptailBuiltin,
-    ptraceInfo,
+    ptraceInfoError,
     ptryFrom,
-    ptryNatural,
     pupcast,
-    runTermCont,
-    tcont,
     (#),
-    (#$),
-    (#<),
+    (#>=),
     (:-->),
  )
 import Plutarch.Repr.Data (DeriveAsDataRec (DeriveAsDataRec))
@@ -146,16 +141,14 @@ the 'PNatural' field is strictly less than the 'PPositive' field.
 @since 1.0.0
 -}
 instance PTryFrom PData (PAsData PGFElementData) where
-    ptryFrom' opq = runTermCont $ do
-        ell <- tcont $ plet (pasList # opq)
-        (x, _) <- tcont $ ptryFrom (pheadBuiltin # ell)
-        (b, _) <- tcont $ ptryFrom (pheadBuiltin #$ ptailBuiltin # ell)
-        res <- tcont $ \k ->
-            pif
-                (pupcast (pfromData x) #< pupcast @PInteger (pfromData b))
-                (k . pdata . pcon . PGFElementData x $ b)
-                (ptraceInfo "PTryFrom PGFElementData: unsuitable element for given field order" perror)
-        pure (res, ())
+    ptryFrom' opq k = plet (pasList # opq) $ \ell ->
+        pheadTailBuiltin ell $ \x' rest ->
+            ptryFrom @(PAsData PNatural) x' $ \(x, _) ->
+                ptryFrom @(PAsData PPositive) (pheadBuiltin # rest) $ \(b, _) ->
+                    pif
+                        (pupcast (pfromData x) #>= pupcast @PInteger (pfromData b))
+                        (ptraceInfoError "PTryFrom PGFElementData: unsuitable element for given field order")
+                        (k (punsafeCoerce opq, ()))
 
 {- | Convert a @Data@-represented Galois field element to its SOP-represented
 equivalent.
@@ -298,6 +291,9 @@ instance PEq PGFElement
 -- | @since 1.0.0
 instance POrd PGFElement
 
+-- | @since wip
+instance PShow PGFElement
+
 -- | @since 1.0.0
 instance PLiftable PGFElement where
     type AsHaskell PGFElement = GFElement
@@ -378,10 +374,3 @@ field.
 -}
 pgfOne :: forall (s :: S). Term s PGFElement
 pgfOne = pconstant . GFElement $ 1
-
--- Orphans
-
-instance PTryFrom PData (PAsData PNatural) where
-    ptryFrom' opq = runTermCont $ do
-        i <- tcont $ plet (pasInt # opq)
-        pure (pdata $ ptryNatural # i, ())

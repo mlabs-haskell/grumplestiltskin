@@ -1,0 +1,123 @@
+pgfZero program 1.1.0 0
+pgfOne program 1.1.0 1
+pgfFromPNatural program
+  1.1.0
+  (modInteger
+     231584178474632390847141970017375815706539969331281128078915168015826259279872
+     57896044618658097711785492504343953926634992332820282019728792003956564819949)
+pgfFromData program
+  1.1.0
+  (unIData
+     (force headList
+        [ I 76
+        , I 57896044618658097711785492504343953926634992332820282019728792003956564819949 ]))
+pgfToData program
+  1.1.0
+  ((\!0 ->
+      (\!0 ->
+         !1
+           (iData
+              (modInteger
+                 231584178474632390847141970017375815706539969331281128078915168015826259279872
+                 !2))
+           (!1 (iData !2) []))
+        (force mkCons))
+     57896044618658097711785492504343953926634992332820282019728792003956564819949)
+pgfRecip program
+  1.1.0
+  (case
+     (constr 0
+        [ 76
+        , (subtractInteger 0 1)
+        , 57896044618658097711785492504343953926634992332820282019728792003956564819949 ])
+     [expModInteger])
+pgfExp positive program
+  1.1.0
+  (case
+     (constr 0
+        [ 76
+        , 700
+        , 57896044618658097711785492504343953926634992332820282019728792003956564819949 ])
+     [expModInteger])
+ppowPositive program
+  1.1.0
+  ((\!0 -> !1 !1)
+     (\!0 !0 !0 ->
+        case
+          (equalsInteger !1 1)
+          [ ((\!0 ->
+                (\!0 ->
+                   case
+                     (equalsInteger (remainderInteger !3 2) 1)
+                     [!1, (multiplyInteger !4 !1)])
+                  (multiplyInteger !1 !1))
+               (case (constr 0 [!3, !2, (quotientInteger !1 2)]) [!3]))
+          , !2 ])
+     76
+     700)
+pgfExp negative program
+  1.1.0
+  (case
+     (constr 0
+        [ 76
+        , (subtractInteger 0 700)
+        , 57896044618658097711785492504343953926634992332820282019728792003956564819949 ])
+     [expModInteger])
+plus program 1.1.0 (addInteger 76 76)
+square program 1.1.0 (multiplyInteger 76 76)
+pscalePositive program 1.1.0 (multiplyInteger 76 700)
+pscaleNatural program 1.1.0 (multiplyInteger 76 700)
+pscaleInteger positive program 1.1.0 (multiplyInteger 76 700)
+pscaleInteger negative program 1.1.0 (multiplyInteger 76 (subtractInteger 0 700))
+pgfToElem reduced program
+  1.1.0
+  (modInteger
+     76
+     57896044618658097711785492504343953926634992332820282019728792003956564819949)
+pgfToElem not reduced program
+  1.1.0
+  (modInteger
+     4400099391018015426095697430330140498424259417294341433499388192300698926316124
+     57896044618658097711785492504343953926634992332820282019728792003956564819949)
+ptryFrom program
+  1.1.0
+  ((\!0 ->
+      (\!0 ->
+         (\!0 ->
+            case
+              !1
+              [ (\!0 !0 ->
+                   (\!0 ->
+                      (\!0 ->
+                         case
+                           (lessThanEqualsInteger
+                              (unIData
+                                 (iData
+                                    (case
+                                       (lessThanEqualsInteger !1 0)
+                                       [ !1
+                                       , (force
+                                            (!6
+                                               "ptryPositive: building with non positive"
+                                               (delay error))) ])))
+                              (unIData
+                                 (iData
+                                    (case
+                                       (lessThanEqualsInteger !2 -1)
+                                       [ !2
+                                       , (force
+                                            (!6
+                                               "ptryNatural: building with negative"
+                                               (delay error))) ]))))
+                           [ !7
+                           , (force
+                                (!6
+                                   "PTryFrom PGFElementData: unsuitable element for given field order"
+                                   (delay error))) ])
+                        (unIData (force headList !2)))
+                     (unIData !2)) ])
+           (unListData !2))
+        (force trace))
+     (List
+        [ I 57896044618658097711785492504343953926634992332820282019728792003956564819948
+        , I 57896044618658097711785492504343953926634992332820282019728792003956564819949 ]))

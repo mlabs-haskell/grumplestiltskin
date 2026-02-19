@@ -5,7 +5,9 @@ import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import Grumplestiltskin.Galois (
     PGFElement,
     PGFElementData,
+    PGFIntermediate,
     pgfExp,
+    pgfFromData,
     pgfFromElem,
     pgfFromPNatural,
     pgfOne,
@@ -15,9 +17,12 @@ import Grumplestiltskin.Galois (
     pgfZero,
  )
 import Numeric.Natural (Natural)
+import Plutarch.Evaluate (evalTerm')
+import Plutarch.Internal.Term (Config (NoTracing))
 import Plutarch.Prelude (
     PAsData,
     PBool,
+    PData,
     PInteger,
     PNatural,
     PPositive,
@@ -31,6 +36,9 @@ import Plutarch.Prelude (
     pnegate,
     ppowNatural,
     ppowPositive,
+    pscaleInteger,
+    pscaleNatural,
+    pscalePositive,
     ptryFrom,
     pupcast,
     tcont,
@@ -41,8 +49,10 @@ import Plutarch.Prelude (
     (#-),
     (#==),
  )
+import Plutarch.Test.Golden (goldenEval, plutarchGolden)
 import Plutarch.Test.Utils (precompileTerm)
 import Plutarch.Unsafe (punsafeCoerce)
+import PlutusCore.Data qualified as Plutus
 import Test.QuickCheck (
     Gen,
     Property,
@@ -79,6 +89,28 @@ main = do
         , testGroup
             "Encoding for PGFElementData"
             [ testProperty "PTryFrom" propPTF
+            ]
+        , plutarchGolden
+            "Goldens"
+            "galois"
+            [ goldenEval "pgfZero" pgfZero
+            , goldenEval "pgfOne" pgfOne
+            , goldenEval "pgfFromPNatural" psample
+            , goldenEval "pgfFromData" (pgfFromData psampleDataEvaluated)
+            , goldenEval "pgfToData" psampleData
+            , goldenEval "pgfRecip" (pgfRecip # psampleInter # p25519)
+            , goldenEval "pgfExp positive" (pgfExp # psampleInter # 700 # p25519)
+            , goldenEval "ppowPositive" (ppowPositive psampleInter (punsafeCoerce @_ @PInteger 700))
+            , goldenEval "pgfExp negative" (pgfExp # psampleInter # (-700) # p25519)
+            , goldenEval "plus" (psampleInter #+ psampleInter)
+            , goldenEval "square" (psampleInter #* psampleInter)
+            , goldenEval "pscalePositive" (pscalePositive psampleInter (punsafeCoerce @_ @PInteger 700))
+            , goldenEval "pscaleNatural" (pscaleNatural psampleInter (punsafeCoerce @_ @PInteger 700))
+            , goldenEval "pscaleInteger positive" (pscaleInteger psampleInter 700)
+            , goldenEval "pscaleInteger negative" (pscaleInteger psampleInter (-700))
+            , goldenEval "pgfToElem reduced" (pgfToElem psampleInter p25519)
+            , goldenEval "pgfToElem not reduced" (pgfToElem psampleInterHuge p25519)
+            , goldenEval "ptryFrom" (ptryFrom @(PAsData PGFElementData) psampleAsData fst)
             ]
         ]
   where
@@ -272,3 +304,35 @@ propExpRing = forAllShrink gen shr $ \(n, i) ->
 
 pbase :: forall (s :: S). Term s PPositive
 pbase = punsafeCoerce (97 :: Term s PInteger)
+
+-- 2 ^ 255 - 19
+p25519 :: forall (s :: S). Term s PPositive
+p25519 = punsafeCoerce @_ @PInteger 57896044618658097711785492504343953926634992332820282019728792003956564819949
+
+-- 2 ^ 257
+phuge :: forall (s :: S). Term s PNatural
+phuge = punsafeCoerce @_ @PInteger 231584178474632390847141970017375815706539969331281128078915168015826259279872
+
+psample :: forall (s :: S). Term s PGFElement
+psample = pgfFromPNatural phuge p25519
+
+psampleData :: forall (s :: S). Term s PGFElementData
+psampleData = pgfToData psample p25519
+
+psampleAsData :: forall (s :: S). Term s PData
+psampleAsData =
+    pconstant
+        ( Plutus.List
+            [ Plutus.I 57896044618658097711785492504343953926634992332820282019728792003956564819948
+            , Plutus.I 57896044618658097711785492504343953926634992332820282019728792003956564819949
+            ]
+        )
+
+psampleDataEvaluated :: forall (s :: S). Term s PGFElementData
+psampleDataEvaluated = evalTerm' NoTracing psampleData
+
+psampleInter :: forall (s :: S). Term s PGFIntermediate
+psampleInter = evalTerm' NoTracing (pgfFromElem psample)
+
+psampleInterHuge :: forall (s :: S). Term s PGFIntermediate
+psampleInterHuge = evalTerm' NoTracing (pscalePositive (pgfFromElem psample) p25519)
