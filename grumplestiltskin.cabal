@@ -93,3 +93,10 @@ test-suite ec
     , vector-sized
 
   hs-source-dirs: test/ec
+
+test-suite extension
+  import:         test-lang
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  hs-source-dirs: test/extension
+  build-depends:  plutus-core

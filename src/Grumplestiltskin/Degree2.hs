@@ -38,6 +38,7 @@ module Grumplestiltskin.Degree2 (
     pd2I,
 
     -- ** Operations
+    fromD2Element,
     pd2Square,
     pd2Divide,
 
@@ -149,8 +150,20 @@ If given a zero modulus, this will error.
 mkD2Element :: Natural -> Natural -> Natural -> D2Element
 mkD2Element r i b = D2Element (r `mod` b) (i `mod` b)
 
+{- | As 'mkD2Element', but with the \'imaginary part\' always zero.
+
+@since wip
+-}
 mkSubD2Element :: Natural -> Natural -> D2Element
 mkSubD2Element r b = D2Element (r `mod` b) 0
+
+{- | Convert a 'D2Element' into its \'real\' and \'imaginary\' components, as
+'Natural's.
+
+@since wip
+-}
+fromD2Element :: D2Element -> (Natural, Natural)
+fromD2Element (D2Element r i) = (r, i)
 
 {- | An element in the second-degree extension of some finite field. The order
 of the field in question is implicit for reasons of efficiency.
@@ -209,7 +222,7 @@ element as its \'real\' part, and the zero element as its \'imaginary\' part.
 @since wip
 -}
 pd2One :: forall (s :: S). Term s PD2Element
-pd2One = pconstant . D2Element 1 $ 1
+pd2One = pconstant . D2Element 1 $ 0
 
 {- | The element corresponding to $i$ in the complex numbers, which exists in
 every second-degree extension of any finite field. More precisely, this has
@@ -274,7 +287,13 @@ instance PAdditiveGroup PD2Intermediate where
     pscaleInteger t scalar = pmatch t $ \case
         PD2Intermediate r i -> pcon . PD2Intermediate (pscaleInteger r scalar) . pscaleInteger i $ scalar
 
--- | @since wip
+{- | = Note
+
+Avoid writing the equivalent of `@x #* x@`, as this is inefficient. Prefer
+the use of @'pd2Square' x@ in such situations.
+
+@since wip
+-}
 instance PMultiplicativeSemigroup PD2Intermediate where
     t1 #* t2 = pmatch t1 $ \case
         PD2Intermediate a b -> pmatch t2 $ \case
@@ -345,12 +364,14 @@ pd2Divide ::
     Term s PD2Intermediate
 pd2Divide w z b = pmatch w $ \case
     PD2Intermediate u v -> pmatch z $ \case
-        PD2Intermediate x y -> plet (pexpModInteger # ((x #* x) #+ (y #* y)) # (-1) # pupcast b) $ \denom ->
-            let ux = u #* x
-                vy = v #* y
-                vx = v #* x
-                uy = u #* y
-             in pcon . PD2Intermediate ((ux #+ vy) #* denom) $ (vx #- uy) #* denom
+        PD2Intermediate x y ->
+            let twoSquares = (x #* x) #+ (y #* y)
+             in plet (pexpModInteger # twoSquares # (-1) # pupcast b) $ \denom ->
+                    let ux = u #* x
+                        vy = v #* y
+                        vx = v #* x
+                        uy = u #* y
+                     in pcon . PD2Intermediate ((ux #+ vy) #* denom) $ (vx #- uy) #* denom
 
 {- | \'Complete\' an intermediate computation with the result being an element
 of a second-degree extension of the given order. The order should be prime,
