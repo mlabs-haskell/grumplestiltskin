@@ -111,7 +111,13 @@ import Test.QuickCheck (
  )
 import Test.QuickCheck.Instances.Natural ()
 
--- | @since wip
+{- | Haskell-level representation of an element of a second-degree extension of
+some finite field. The field order is implicit, but the assumption is that
+both the \'real\' and \'imaginary\' parts of the element are already in
+reduced form.
+
+@since wip
+-}
 data D2Element = D2Element Natural Natural
     deriving stock
         ( -- | @since wip
@@ -169,7 +175,13 @@ mkSubD2Element r b = D2Element (r `mod` b) 0
 fromD2Element :: D2Element -> (Natural, Natural)
 fromD2Element (D2Element r i) = (r, i)
 
--- | @since wip
+{- | Plutarch-level representation of an element of a second-degree extension of
+some finite field. The field order is implicit, but the assumption is that
+both the \'real\' and \'imaginary\' parts of the element are already in
+reduced form.
+
+@since wip
+-}
 data PD2Element (s :: S) = PD2Element (Term s PNatural) (Term s PNatural)
     deriving stock
         ( -- | @since wip
@@ -222,7 +234,10 @@ element as its \'real\' part, and the zero element as its \'imaginary\' part.
 pd2One :: forall (s :: S). Term s PD2Element
 pd2One = pconstant . D2Element 1 $ 0
 
--- | @since wip
+{- | Convert an element into an intermediate form, suitable for computation.
+
+@since wip
+-}
 pd2FromElem ::
     forall (s :: S).
     Term s PD2Element ->
@@ -230,7 +245,12 @@ pd2FromElem ::
 pd2FromElem t = pmatch t $ \(PD2Element x y) ->
     pcon $ PD2Intermediate $ plam $ \_ _ k -> k # pupcast x # pupcast y
 
--- | @since wip
+{- | An intermediate computation over the second-order extension of some finite
+field. This type exists for efficiency: you want to do all calculations in
+'PD2Intermediate', then use 'pd2ToElem' to produce a result.
+
+@since wip
+-}
 newtype PD2Intermediate (s :: S)
     = PD2Intermediate
         (forall (r :: S -> Type). Term s (PNatural :--> PPositive :--> (PInteger :--> PInteger :--> r) :--> r))
@@ -340,7 +360,20 @@ instance PMultiplicativeSemigroup PD2Intermediate where
 instance PMultiplicativeMonoid PD2Intermediate where
     pone = pcon $ PD2Intermediate $ plam $ \_ _ k -> k # pone # pzero
 
--- | @since wip
+{- | Given an irreducible (the 'PNatural' argument) and a field order (the
+'PPositive' argument), \'complete\' the computation described by the
+'PD2Intermediate' argument to produce a 'PD2Element'. The field order should
+be prime, but this is not checked.
+
+= Note on irreducibles
+
+An /irreducible/ is some @r@ such that @x^2 = r@ has no solution in the field
+of the given field order. If an argument not satisfying this property is
+given as an irreducible, the computation can fail with a strange, and
+unrelated, error message, so choose this carefully.
+
+@since wip
+-}
 pd2ToElem ::
     forall (s :: S).
     Term s PNatural ->
@@ -350,7 +383,11 @@ pd2ToElem ::
 pd2ToElem rSquared order t = pmatch t $ \(PD2Intermediate k1) ->
     k1 # rSquared # order # plam (\x y -> pcon . PD2Element (preduce # x # order) $ preduce # y # order)
 
--- | @since wip
+{- | Squares the given element. @pd2Square x@ is slightly more efficient than @x
+#* x@, as it avoids a redundant multiplication and 'pmatch'.
+
+@since wip
+-}
 pd2Square ::
     forall (s :: S).
     Term s PD2Intermediate -> Term s PD2Intermediate
@@ -367,7 +404,11 @@ pd2Square t = pmatch t $ \(PD2Intermediate k1) ->
                      in k # (xSquared #+ (pupcast rSquared #* ySquared)) # (2 #* xy)
                 )
 
--- | @since wip
+{- | Raises the first argument to the power of the second argument: this acts as
+repeated multiplication.
+
+@since wip
+-}
 pd2Pow ::
     forall (s :: S).
     Term s PD2Intermediate -> Term s PInteger -> Term s PD2Intermediate
@@ -377,7 +418,12 @@ pd2Pow t i =
         (pd2Recip . ppowNatural t . punsafeCoerce $ pnegate # i)
         (ppowNatural t . punsafeCoerce $ i)
 
--- | @since wip
+{- | Divides the first argument by the second argument. The second argument must
+not be zero: that is, either its \'real\' or \'imaginary\' part must be
+nonzero. If given a zero second argument, this will error.
+
+@since wip
+-}
 pd2Divide ::
     forall (s :: S).
     Term s PD2Intermediate -> Term s PD2Intermediate -> Term s PD2Intermediate

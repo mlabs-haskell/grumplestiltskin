@@ -11,6 +11,7 @@ import Grumplestiltskin.Degree2 (
     pd2Divide,
     pd2FromElem,
     pd2One,
+    pd2Pow,
     pd2Square,
     pd2ToElem,
     pd2Zero,
@@ -28,7 +29,10 @@ import Plutarch.Prelude (
     pconstant,
     plam,
     plift,
+    pnegate,
     pone,
+    ppowNatural,
+    ppowPositive,
     pscaleInteger,
     pscaleNatural,
     pscalePositive,
@@ -76,6 +80,12 @@ main = do
             , testProperty "pscalePositive x n = pscaleNatural x (pupcast n)" propScalePosNatAgree
             , testProperty "pscaleNatural x pzero = pzero" propScaleNatZero
             , testProperty "pscaleNatural x n = pscaleInteger x (pupcast n)" propScaleNatIntAgree
+            , testProperty "pd2Divide x y #* y = x" propDivide
+            , testProperty "ppowPositive x n #* ppowPositive x m = ppowPositive x (n #+ m)" propPowPosAdd
+            , testProperty "ppowPositive (ppowPositive x n) m = ppowPositive x (n #* m)" propPowPosMul
+            , testProperty "ppowPositive x 1 = x" propPowPosOne
+            , testProperty "ppowNatural x n = pd2Pow x (pupcast n)" propPowNatIntAgree
+            , testProperty "pd2Pow x (-i) = pdDivide 1 (pd2Pow x i)" propPowInverse
             ]
         , plutarchGolden
             "Goldens"
@@ -86,6 +96,11 @@ main = do
             , goldenEval "pscalePositive" (pscalePositive psampleInt (punsafeCoerce @_ @PInteger 700))
             , goldenEval "pscaleNatural" (pscalePositive psampleInt (punsafeCoerce @_ @PInteger 700))
             , goldenEval "pscaleInteger positive" (pscaleInteger psampleInt 700)
+            , goldenEval "pscaleInteger negative" (pscaleInteger psampleInt (-700))
+            , goldenEval "ppowPositive" (ppowPositive psampleInt (punsafeCoerce @_ @PInteger 70))
+            , goldenEval "ppowNatural" (ppowNatural psampleInt (punsafeCoerce @_ @PInteger 70))
+            , goldenEval "pd2Pow positive" (pd2Pow psampleInt 70)
+            , goldenEval "pd2Pow negative" (pd2Pow psampleInt (-70))
             , goldenEval "pd2Square" (pd2Square psampleInt)
             ]
         ]
@@ -94,6 +109,100 @@ main = do
     moreTests = max 100_000
 
 -- Properties
+
+propPowNatIntAgree :: Property
+propPowNatIntAgree = forAll arbitrary $ \(x, NonNegative n) ->
+    plift (precompileTerm (plam go) # pconstant x # pconstant n)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PInteger ->
+        Term s PBool
+    go t n =
+        let asIntermediate = pd2FromElem t
+            asNat = punsafeCoerce n
+            lhs = ppowNatural asIntermediate asNat
+            rhs = pd2Pow asIntermediate n
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+
+propPowInverse :: Property
+propPowInverse = forAll arbitrary $ \(NZD2E x, i) ->
+    plift (precompileTerm (plam go) # pconstant x # pconstant i)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PInteger ->
+        Term s PBool
+    go t n =
+        let asIntermediate = pd2FromElem t
+            lhs = pd2Pow asIntermediate (pnegate # n)
+            rhs = pd2Divide pone (pd2Pow asIntermediate n)
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+
+propPowPosAdd :: Property
+propPowPosAdd = forAll arbitrary $ \(x, Positive n, Positive m) ->
+    plift (precompileTerm (plam go) # pconstant x # pconstant n # pconstant m)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PBool
+    go t n m =
+        let asIntermediate = pd2FromElem t
+            n' = punsafeCoerce n
+            m' = punsafeCoerce m
+            lhs = ppowPositive asIntermediate n' #* ppowPositive asIntermediate m'
+            rhs = ppowPositive asIntermediate (n' #+ m')
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+
+propPowPosMul :: Property
+propPowPosMul = forAll arbitrary $ \(x, Positive n, Positive m) ->
+    plift (precompileTerm (plam go) # pconstant x # pconstant n # pconstant m)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PInteger ->
+        Term s PInteger ->
+        Term s PBool
+    go t n m =
+        let asIntermediate = pd2FromElem t
+            n' = punsafeCoerce n
+            m' = punsafeCoerce m
+            lhs = ppowPositive (ppowPositive asIntermediate n') m'
+            rhs = ppowPositive asIntermediate (n' #* m')
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+
+propPowPosOne :: Property
+propPowPosOne = forAll arbitrary $ \x ->
+    plift (precompileTerm (plam go) # pconstant x)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element -> Term s PBool
+    go t =
+        let asIntermediate = pd2FromElem t
+            lhs = ppowPositive asIntermediate pone
+         in pd2ToElem pirreducible pbase lhs #== t
+
+propDivide :: Property
+propDivide = forAll arbitrary $ \(x, NZD2E y) ->
+    plift (precompileTerm (plam go) # pconstant x # pconstant y)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PBool
+    go t1 t2 =
+        let t1Int = pd2FromElem t1
+            t2Int = pd2FromElem t2
+            lhs = pd2Divide t1Int t2Int #* t2Int
+         in pd2ToElem pirreducible pbase lhs #== t1
 
 propScaleNatIntAgree :: Property
 propScaleNatIntAgree = forAll arbitrary $ \(x, NonNegative n) ->
