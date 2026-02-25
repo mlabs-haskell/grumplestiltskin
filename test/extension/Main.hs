@@ -10,7 +10,6 @@ import Grumplestiltskin.Degree2 (
     mkD2Element,
     pd2Divide,
     pd2FromElem,
-    pd2I,
     pd2One,
     pd2Square,
     pd2ToElem,
@@ -22,13 +21,13 @@ import Plutarch.Internal.Term (Config (NoTracing))
 import Plutarch.Prelude (
     PBool,
     PInteger,
+    PNatural,
     PPositive,
     S,
     Term,
     pconstant,
     plam,
     plift,
-    pnegate,
     pone,
     pscaleInteger,
     pscaleNatural,
@@ -41,7 +40,6 @@ import Plutarch.Prelude (
     (#==),
  )
 import Plutarch.Test.Golden (goldenEval, plutarchGolden)
-import Plutarch.Test.Unit (testEval)
 import Plutarch.Test.Utils (precompileTerm)
 import Plutarch.Unsafe (punsafeCoerce)
 import Test.QuickCheck (
@@ -71,7 +69,6 @@ main = do
             , testProperty "one element is an identity for #*" propOneMul
             , testProperty "distributivity of #+ over #*" propDistribute
             , testProperty "pd2Square x = x #* x" propSquare
-            , testEval "pd2Square pd2I = -1" iAssertion
             , testProperty "pd2Divide x pd2One = x" propOneDivide
             , testProperty "pscalePositive x n #+ pscalePositive x m = pscalePositive x (n #+ m)" propScalePosAdd
             , testProperty "pscalePositive x pone = x" propScalePosOne
@@ -79,14 +76,12 @@ main = do
             , testProperty "pscalePositive x n = pscaleNatural x (pupcast n)" propScalePosNatAgree
             , testProperty "pscaleNatural x pzero = pzero" propScaleNatZero
             , testProperty "pscaleNatural x n = pscaleInteger x (pupcast n)" propScaleNatIntAgree
-            --          testProperty "pd2Divide is an inverse for nonzero elements" propDivideInv
             ]
         , plutarchGolden
             "Goldens"
             "extension"
             [ goldenEval "pd2Zero" pd2Zero
             , goldenEval "pd2One" pd2One
-            , goldenEval "pd2I" pd2I
             , goldenEval "plus" (psampleInt #+ psampleIntSquared)
             , goldenEval "pscalePositive" (pscalePositive psampleInt (punsafeCoerce @_ @PInteger 700))
             , goldenEval "pscaleNatural" (pscalePositive psampleInt (punsafeCoerce @_ @PInteger 700))
@@ -97,10 +92,6 @@ main = do
   where
     moreTests :: QuickCheckTests -> QuickCheckTests
     moreTests = max 100_000
-    iAssertion :: forall (s :: S). Term s PBool
-    iAssertion =
-        pd2ToElem (pd2Square (pd2FromElem pd2I)) pbase
-            #== pd2ToElem (pnegate # pd2FromElem pd2One) pbase
 
 -- Properties
 
@@ -118,7 +109,7 @@ propScaleNatIntAgree = forAll arbitrary $ \(x, NonNegative n) ->
             nNat = punsafeCoerce n
             lhs = pscaleNatural asIntermediate nNat
             rhs = pscaleInteger asIntermediate n
-         in pd2ToElem lhs pbase #== pd2ToElem rhs pbase
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
 
 propScaleNatZero :: Property
 propScaleNatZero = forAll arbitrary $ \x ->
@@ -128,7 +119,7 @@ propScaleNatZero = forAll arbitrary $ \x ->
     go x =
         let asIntermediate = pd2FromElem x
             lhs = pscaleNatural asIntermediate pzero
-         in pd2ToElem lhs pbase #== pd2Zero
+         in pd2ToElem pirreducible pbase lhs #== pd2Zero
 
 propScalePosNatAgree :: Property
 propScalePosNatAgree = forAll arbitrary $ \(x, Positive n) ->
@@ -145,7 +136,7 @@ propScalePosNatAgree = forAll arbitrary $ \(x, Positive n) ->
             nNat = punsafeCoerce n
             lhs = pscalePositive asIntermediate nPos
             rhs = pscaleNatural asIntermediate nNat
-         in pd2ToElem lhs pbase #== pd2ToElem rhs pbase
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
 
 propScalePosAdd :: Property
 propScalePosAdd = forAll arbitrary $ \(x, Positive n, Positive m) ->
@@ -163,7 +154,7 @@ propScalePosAdd = forAll arbitrary $ \(x, Positive n, Positive m) ->
             m' = punsafeCoerce m
             lhs = pscalePositive asIntermediate n' #+ pscalePositive asIntermediate m'
             rhs = pscalePositive asIntermediate (n' #+ m')
-         in pd2ToElem lhs pbase #== pd2ToElem rhs pbase
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
 
 propScalePosOne :: Property
 propScalePosOne = forAll arbitrary $ \x ->
@@ -173,7 +164,7 @@ propScalePosOne = forAll arbitrary $ \x ->
     go x =
         let asIntermediate = pd2FromElem x
             lhs = pscalePositive asIntermediate pone
-         in pd2ToElem lhs pbase #== x
+         in pd2ToElem pirreducible pbase lhs #== x
 
 propScalePosMul :: Property
 propScalePosMul = forAll arbitrary $ \(x, n, m) ->
@@ -191,7 +182,7 @@ propScalePosMul = forAll arbitrary $ \(x, n, m) ->
             m' = punsafeCoerce m
             lhs = pscalePositive (pscalePositive asIntermediate n') m'
             rhs = pscalePositive asIntermediate (n' #* m')
-         in pd2ToElem lhs pbase #== pd2ToElem rhs pbase
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
 
 propOneDivide :: Property
 propOneDivide = forAll arbitrary $ \x ->
@@ -200,21 +191,8 @@ propOneDivide = forAll arbitrary $ \x ->
     go :: forall (s :: S). Term s PD2Element -> Term s PBool
     go t =
         let asIntermediate = pd2FromElem t
-            lhs = pd2Divide asIntermediate pone pbase
-         in pd2ToElem lhs pbase #== t
-
-{-
-propDivideInv :: Property
-propDivideInv = forAll arbitrary $ \(x, NZD2E y) ->
-  plift (precompileTerm (plam go) # pconstant x # pconstant y)
-  where
-    go :: forall (s :: S) . Term s PD2Element -> Term s PD2Element -> Term s PBool
-    go t1 t2 = let t1AsI = pd2FromElem t1
-                   t2AsI = pd2FromElem t2
-                   lhs = pd2Divide t1AsI t2AsI pbase
-                   rhs = t1AsI #* pd2Divide pone t2AsI pbase
-                 in pd2ToElem lhs pbase #== pd2ToElem rhs pbase
--}
+            lhs = pd2Divide asIntermediate pone
+         in pd2ToElem pirreducible pbase lhs #== t
 
 propSquare :: Property
 propSquare = forAll arbitrary $ \x ->
@@ -225,7 +203,7 @@ propSquare = forAll arbitrary $ \x ->
         let asIntermediate = pd2FromElem t
             lhs = pd2Square asIntermediate
             rhs = asIntermediate #* asIntermediate
-         in pd2ToElem lhs pbase #== pd2ToElem rhs pbase
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
 
 propCommAdd :: Property
 propCommAdd = forAll arbitrary $ \(x, y) ->
@@ -235,7 +213,7 @@ propCommAdd = forAll arbitrary $ \(x, y) ->
     go t1 t2 =
         let lhs = pd2FromElem t1 #+ pd2FromElem t2
             rhs = pd2FromElem t2 #+ pd2FromElem t1
-         in pd2ToElem lhs pbase #== pd2ToElem rhs pbase
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
 
 propAssocAdd :: Property
 propAssocAdd = forAll arbitrary $ \(x, y, z) ->
@@ -250,7 +228,7 @@ propAssocAdd = forAll arbitrary $ \(x, y, z) ->
     go t1 t2 t3 =
         let lhs = pd2FromElem t1 #+ (pd2FromElem t2 #+ pd2FromElem t3)
             rhs = (pd2FromElem t1 #+ pd2FromElem t2) #+ pd2FromElem t3
-         in pd2ToElem lhs pbase #== pd2ToElem rhs pbase
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
 
 propZeroAdd :: Property
 propZeroAdd = forAll arbitrary $ \x ->
@@ -259,7 +237,7 @@ propZeroAdd = forAll arbitrary $ \x ->
     go :: forall (s :: S). Term s PD2Element -> Term s PBool
     go t =
         let lhs = pd2FromElem t #+ pzero
-         in pd2ToElem lhs pbase #== t
+         in pd2ToElem pirreducible pbase lhs #== t
 
 propNegate :: Property
 propNegate = forAll arbitrary $ \x ->
@@ -269,7 +247,7 @@ propNegate = forAll arbitrary $ \x ->
         forall (s :: S).
         Term s PD2Element ->
         Term s PBool
-    go t = pd2ToElem (pd2FromElem t #- pd2FromElem t) pbase #== pd2Zero
+    go t = pd2ToElem pirreducible pbase (pd2FromElem t #- pd2FromElem t) #== pd2Zero
 
 propCommMul :: Property
 propCommMul = forAll arbitrary $ \(x, y) ->
@@ -283,7 +261,7 @@ propCommMul = forAll arbitrary $ \(x, y) ->
     go t1 t2 =
         let lhs = pd2FromElem t1 #* pd2FromElem t2
             rhs = pd2FromElem t2 #* pd2FromElem t1
-         in pd2ToElem lhs pbase #== pd2ToElem rhs pbase
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
 
 propAssocMul :: Property
 propAssocMul = forAll arbitrary $ \(x, y, z) ->
@@ -298,7 +276,7 @@ propAssocMul = forAll arbitrary $ \(x, y, z) ->
     go t1 t2 t3 =
         let lhs = pd2FromElem t1 #* (pd2FromElem t2 #* pd2FromElem t3)
             rhs = (pd2FromElem t1 #* pd2FromElem t2) #* pd2FromElem t3
-         in pd2ToElem lhs pbase #== pd2ToElem rhs pbase
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
 
 propOneMul :: Property
 propOneMul = forAll arbitrary $ \x ->
@@ -307,7 +285,7 @@ propOneMul = forAll arbitrary $ \x ->
     go :: forall (s :: S). Term s PD2Element -> Term s PBool
     go t =
         let lhs = pd2FromElem t #* pone
-         in pd2ToElem lhs pbase #== t
+         in pd2ToElem pirreducible pbase lhs #== t
 
 propDistribute :: Property
 propDistribute = forAll arbitrary $ \(x, y, z) ->
@@ -322,7 +300,7 @@ propDistribute = forAll arbitrary $ \(x, y, z) ->
     go t1 t2 t3 =
         let lhs = pd2FromElem t1 #* (pd2FromElem t2 #+ pd2FromElem t3)
             rhs = (pd2FromElem t1 #* pd2FromElem t2) #+ (pd2FromElem t1 #* pd2FromElem t3)
-         in pd2ToElem lhs pbase #== pd2ToElem rhs pbase
+         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
 
 -- Helpers
 
@@ -346,6 +324,9 @@ instance Arbitrary NonZeroD2E where
 
 pbase :: forall (s :: S). Term s PPositive
 pbase = punsafeCoerce (97 :: Term s PInteger)
+
+pirreducible :: forall (s :: S). Term s PNatural
+pirreducible = punsafeCoerce (5 :: Term s PInteger)
 
 -- BLS12-381 G1 field order
 const381 :: Natural
