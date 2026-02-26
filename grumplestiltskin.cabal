@@ -66,6 +66,7 @@ library
   exposed-modules:
     Grumplestiltskin.EllipticCurve
     Grumplestiltskin.Galois
+    Grumplestiltskin.Verify
 
   build-depends:
     , generics-sop
