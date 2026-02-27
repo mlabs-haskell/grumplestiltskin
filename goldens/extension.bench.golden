@@ -1,8 +1,12 @@
 pd2Zero {"exBudgetCPU":48100,"exBudgetMemory":400,"scriptSizeBytes":11}
 pd2One {"exBudgetCPU":48100,"exBudgetMemory":400,"scriptSizeBytes":11}
-pd2I {"exBudgetCPU":48100,"exBudgetMemory":400,"scriptSizeBytes":11}
-plus {"exBudgetCPU":675756,"exBudgetMemory":3026,"scriptSizeBytes":363}
-pscalePositive {"exBudgetCPU":603196,"exBudgetMemory":2714,"scriptSizeBytes":143}
-pscaleNatural {"exBudgetCPU":603196,"exBudgetMemory":2714,"scriptSizeBytes":143}
-pscaleInteger positive {"exBudgetCPU":603196,"exBudgetMemory":2714,"scriptSizeBytes":143}
-pd2Square {"exBudgetCPU":1089944,"exBudgetMemory":3662,"scriptSizeBytes":151}
+plus {"exBudgetCPU":16100,"exBudgetMemory":200,"scriptSizeBytes":285}
+pscalePositive {"exBudgetCPU":64100,"exBudgetMemory":500,"scriptSizeBytes":141}
+pscaleNatural {"exBudgetCPU":64100,"exBudgetMemory":500,"scriptSizeBytes":141}
+pscaleInteger positive {"exBudgetCPU":64100,"exBudgetMemory":500,"scriptSizeBytes":141}
+pscaleInteger negative {"exBudgetCPU":112100,"exBudgetMemory":800,"scriptSizeBytes":152}
+ppowPositive {"exBudgetCPU":575867,"exBudgetMemory":2602,"scriptSizeBytes":353}
+ppowNatural {"exBudgetCPU":724200,"exBudgetMemory":3203,"scriptSizeBytes":371}
+pd2Pow positive {"exBudgetCPU":1125245,"exBudgetMemory":4806,"scriptSizeBytes":807}
+pd2Pow negative {"exBudgetCPU":630353,"exBudgetMemory":2505,"scriptSizeBytes":813}
+pd2Square {"exBudgetCPU":16100,"exBudgetMemory":200,"scriptSizeBytes":153}
