@@ -36,6 +36,8 @@ module Grumplestiltskin.Degree2 (
 
     -- ** Operations
     fromD2Element,
+    pd2FromPoint,
+    pd2ToPoint,
     pd2Square,
     pd2Pow,
     pd2Divide,
@@ -215,6 +217,26 @@ instance PLiftable PD2Element where
             | otherwise -> pure $ D2Element (fromIntegral realPart) (fromIntegral imaginaryPart)
     reprToPlut = pliftedFromClosed
     plutToRepr = Right . pliftedToClosed
+
+-- | @since wip
+pd2FromPoint ::
+    forall (r :: S -> Type) (s :: S).
+    Term s PD2Element ->
+    (Term s PNatural -> Term s PNatural -> Term s r) ->
+    Term s r
+pd2FromPoint t f = pmatch t $ \(PD2Element x y) -> f x y
+
+-- | @since wip
+pd2ToPoint ::
+    forall (s :: S).
+    Term s PNatural ->
+    Term s PNatural ->
+    Term s PNatural ->
+    Term s PD2Element
+pd2ToPoint r i fieldMod =
+    let r' = punsafeCoerce (pmod # pupcast r # pupcast fieldMod)
+        i' = punsafeCoerce (pmod # pupcast i # pupcast fieldMod)
+     in pcon . PD2Element r' $ i'
 
 {- | The zero element (the additive identity), which exists in every
 second-degree extension of any finite field. More precisely, this has the

@@ -95,9 +95,13 @@ test-suite ec
 
   hs-source-dirs: test/ec
 
-test-suite extension
+test-suite extension-ec
   import:         test-lang
   type:           exitcode-stdio-1.0
   main-is:        Main.hs
-  hs-source-dirs: test/extension
-  build-depends:  plutus-core
+  other-modules:  GenCurve
+  hs-source-dirs: test/extension-ec
+  build-depends:
+    , plutus-core
+    , semirings
+    , vector-sized

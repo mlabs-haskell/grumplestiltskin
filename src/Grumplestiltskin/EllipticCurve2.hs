@@ -3,10 +3,16 @@
 {-# LANGUAGE ImpredicativeTypes #-}
 
 module Grumplestiltskin.EllipticCurve2 (
+    -- * Types
     PEC2Point,
     PEC2Intermediate,
+
+    -- * Functions
+    pec2FromElems,
     pec2OnCurve,
     pec2Double,
+    pec2ToIntermediate,
+    pec2FromIntermediate,
 ) where
 
 import Data.Kind (Type)
@@ -15,7 +21,9 @@ import Generics.SOP qualified as SOP
 import Grumplestiltskin.Degree2 (
     PD2Element,
     pd2FromElem,
+    pd2FromPoint,
     pd2ToElem,
+    pd2ToPoint,
  )
 import Plutarch.Builtin.Integer (pexpModInteger)
 import Plutarch.Internal.Case (punsafeCase)
@@ -74,6 +82,10 @@ data PEC2Point (s :: S)
           PlutusType
         )
         via (DeriveAsSOPStruct PEC2Point)
+
+-- | @since wip
+pec2FromElems :: forall (s :: S). Term s PD2Element -> Term s PD2Element -> Term s PEC2Point
+pec2FromElems x = pcon . PEC2Point x
 
 {- | Given a field order (as a 'PPositive'), an irreducible (also as a
 'PPositive') and @A@ and @B@ constants for an
@@ -218,6 +230,46 @@ instance PAdditiveGroup PEC2Intermediate where
                     ( \xR1 xI1 yR1 yI1 z1 ->
                         k # xR1 # xI1 # (pnegate # yR1) # (pnegate # yI1) # z1
                     )
+
+-- | @since wip
+pec2ToIntermediate ::
+    forall (s :: S).
+    Term s PEC2Point ->
+    Term s PEC2Intermediate
+pec2ToIntermediate p = pcon $ PEC2Intermediate $ plam $ \_ _ _ _ k ->
+    pmatch p $ \case
+        PEC2Infinity -> callZero # k
+        PEC2Point x y -> pd2FromPoint x $ \x1 x2 ->
+            pd2FromPoint y $ \y1 y2 -> k # pupcast x1 # pupcast x2 # pupcast y1 # pupcast y2 # pnatOne
+
+-- | @since wip
+pec2FromIntermediate ::
+    forall (s :: S).
+    Term s PPositive ->
+    Term s PNatural ->
+    Term s PInteger ->
+    Term s PInteger ->
+    Term s PEC2Intermediate ->
+    Term s PEC2Point
+pec2FromIntermediate fieldMod rSquared aI aR p = pmatch p $ \(PEC2Intermediate k1) ->
+    k1
+        # fieldMod
+        # rSquared
+        # aI
+        # aR
+        # plam
+            ( \xR xI yR yI z ->
+                pif
+                    (z #== pnatZero)
+                    (pcon PEC2Infinity)
+                    ( let fieldMod' = pupcast fieldMod
+                          xR' = punsafeCoerce (pmod # xR # fieldMod')
+                          xI' = punsafeCoerce (pmod # xI # fieldMod')
+                          yR' = punsafeCoerce (pmod # yR # fieldMod')
+                          yI' = punsafeCoerce (pmod # yI # fieldMod')
+                       in pcon . PEC2Point (pd2ToPoint xR' xI' . punsafeCoerce $ fieldMod) . pd2ToPoint yR' yI' . punsafeCoerce $ fieldMod
+                    )
+            )
 
 pec2Double ::
     forall (s :: S).
