@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 {- | Elliptic curves over finite fields. The general formula for these functions
 is @y^2 = x^3 + ax + b (mod r)@, where @r@ is the field order.
@@ -36,6 +37,256 @@ module Grumplestiltskin.EllipticCurve (
     pecToPoint,
 ) where
 
+import Data.Kind (Type)
+import GHC.Generics (Generic)
+import Generics.SOP qualified as SOP
+import Grumplestiltskin.Galois (PGFElement)
+import Plutarch.Prelude (
+    DeriveAsDataRec (DeriveAsDataRec),
+    DeriveAsSOPStruct (DeriveAsSOPStruct),
+    PAsData,
+    PBool,
+    PData,
+    PEq ((#==)),
+    PInteger,
+    PIsData,
+    PNatural,
+    PPositive,
+    PShow,
+    PString,
+    PTryFrom (ptryFrom'),
+    PlutusType,
+    S,
+    Term,
+    pasList,
+    pfromData,
+    pheadBuiltin,
+    pheadTailBuiltin,
+    pif,
+    plet,
+    pmatch,
+    pmod,
+    ptraceInfoError,
+    ptryFrom,
+    pupcast,
+    (#),
+    (#*),
+    (#+),
+    (#<),
+ )
+import Plutarch.Unsafe (punsafeCoerce)
+
+{- | @Data@-encoded point on some elliptic curve, represented as a combination
+of:
+
+* The point's @x@ and @y@ co-ordinates, as elements of some finite field;
+* The order of the field used to define those co-ordinates; and
+* The curve's @A@ and @B@ constants.
+
+This type is primarily designed as an exchange format (such as for use in
+datums); to do any work with such points, we recommend first converting to
+'PECPoint' using 'pecFromData'.
+
+@since 1.1.0
+-}
+data PECPointData (s :: S)
+    = PECPointData
+        (Term s (PAsData PPositive))
+        (Term s (PAsData PNatural))
+        (Term s (PAsData PNatural))
+        (Term s (PAsData PNatural))
+        (Term s (PAsData PNatural))
+    deriving stock
+        ( -- | @since 1.1.0
+          Generic
+        )
+    deriving anyclass
+        ( -- | @since 1.1.0
+          SOP.Generic
+        , -- | @since 1.1.0
+          PIsData
+        )
+
+-- | @since 1.1.0
+deriving via (DeriveAsDataRec PECPointData) instance PlutusType PECPointData
+
+{- | This instance validates. Specifically, it will check the following:
+
+1. Whether the @x@ and @y@ coordinates, as well as the @A@ and @B@ constants, are
+   smaller than the field order; and
+2. Whether the point @(x, y)@ is on the curve as specified by the field order
+   and the @A@ and @B@ constants.
+
+Notably, no checks for non-singularity are done: any @A@ and @B@ constants
+are presumed to be suitable. Additionally, the primality of the field order
+is not checked either.
+
+@since 1.1.0
+-}
+instance PTryFrom PData (PAsData PECPointData) where
+    ptryFrom' ::
+        forall (s :: S) (r :: S -> Type).
+        Term s PData ->
+        ((Term s (PAsData PECPointData), ()) -> Term s r) ->
+        Term s r
+    ptryFrom' opq k = plet (pasList # opq) $ \fields ->
+        pheadTailBuiltin fields $ \fieldOrder' rest1 ->
+            ptryFrom @(PAsData PPositive) fieldOrder' $ \(fieldOrder, _) ->
+                pheadTailBuiltin rest1 $ \curveA' rest2 ->
+                    ptryFrom @(PAsData PNatural) curveA' $ \(curveA, _) ->
+                        pheadTailBuiltin rest2 $ \curveB' rest3 ->
+                            ptryFrom @(PAsData PNatural) curveB' $ \(curveB, _) ->
+                                pheadTailBuiltin rest3 $ \x' rest4 ->
+                                    ptryFrom @(PAsData PNatural) x' $ \(x, _) ->
+                                        plet (pheadBuiltin # rest4) $ \y' ->
+                                            ptryFrom @(PAsData PNatural) y' $ \(y, _) ->
+                                                go fieldOrder curveA curveB x y
+      where
+        go ::
+            Term s (PAsData PPositive) ->
+            Term s (PAsData PNatural) ->
+            Term s (PAsData PNatural) ->
+            Term s (PAsData PNatural) ->
+            Term s (PAsData PNatural) ->
+            Term s r
+        go fieldOrder' curveA' curveB' x' y' =
+            plet (pfromData fieldOrder') $ \fieldOrder ->
+                plet (pfromData curveA') $ \curveA ->
+                    let fo = pupcast @PInteger fieldOrder
+                     in pif
+                            (pupcast curveA #< fo)
+                            ( plet (pfromData curveB') $ \curveB ->
+                                pif
+                                    (pupcast curveB #< fo)
+                                    ( plet (pfromData x') $ \x ->
+                                        pif
+                                            (pupcast x #< fo)
+                                            ( plet (pfromData y') $ \y ->
+                                                pif
+                                                    (pupcast y #< fo)
+                                                    ( pif
+                                                        (pupcast @PInteger y #== 0)
+                                                        -- Point at infinity, thus on every
+                                                        -- curve.
+                                                        (k (punsafeCoerce opq, ()))
+                                                        ( pif
+                                                            (ponCurve x y fieldOrder curveA curveB)
+                                                            (k (punsafeCoerce opq, ()))
+                                                            (ptraceInfoError notOnCurve)
+                                                        )
+                                                    )
+                                                    (ptraceInfoError badY)
+                                            )
+                                            (ptraceInfoError badX)
+                                    )
+                                    (ptraceInfoError invalidB)
+                            )
+                            (ptraceInfoError invalidA)
+        invalidA :: Term s PString
+        invalidA = "PTryFrom PECPointData: Curve constant A is not in the field"
+        invalidB :: Term s PString
+        invalidB = "PTryFrom PECPointData: Curve constant B is not in the field"
+        badX :: Term s PString
+        badX = "PTryFrom PECPointData: Unsuitable X coordinate for given field order"
+        badY :: Term s PString
+        badY = "PTryFrom PECPointData: Unsuitable Y coordinate for given field order"
+        notOnCurve :: Term s PString
+        notOnCurve = "PTryFrom PECPointData: Specified point not on specified curve"
+
+{- | Given a @Data@-encoded curve point, \'unpacks\' its data and passes it to a
+user-provided handler. The handler arguments are, in order:
+
+1. The 'PECPoint' so decoded;
+2. The field order of the @x@ and @y@ coordinates of the decoded point;
+3. The curve's @A@ constant; and
+4. The curve's @B@ constant.
+
+= Note
+
+We have to use this CPS-style handling of 'PECPointData' due to the large
+amount of information @Data@ encodings of points have to preserve. Given that
+each point may have its own curve specifics (which you might want to check),
+and many operations in this module require knowing at least the field order,
+and quite often the @A@ constant as well. This handler ensures that all this
+information is available conveniently and safely.
+
+@since 1.1.0
+-}
+pecFromData ::
+    forall (r :: S -> Type) (s :: S).
+    Term s PECPointData ->
+    (Term s PECPoint -> Term s PPositive -> Term s PNatural -> Term s PNatural -> Term s r) ->
+    Term s r
+pecFromData x f = _
+
+{- | Given a point, the field order of its coordinates, and the @A@ and @B@
+constants for its curve, produce its @Data@ encoding.
+
+@since 1.1.0
+-}
+pecToData ::
+    forall (s :: S).
+    Term s PECPoint ->
+    Term s PPositive ->
+    Term s PNatural ->
+    Term s PNatural ->
+    Term s PECPointData
+pecToData = _
+
+{- | A point on some elliptic curve. The order of the field for the @x@ and @y@
+co-ordinates of the curve point is implicit, for reasons of efficiency.
+
+@since 1.1.0
+-}
+data PECPoint (s :: S)
+    = -- Point at infinity
+      PECI
+    | -- Actual point
+      PECP (Term s PGFElement) (Term s PGFElement)
+    deriving stock
+        ( -- | @since 1.1.0
+          Generic
+        )
+    deriving anyclass
+        ( -- | @since 1.1.0
+          SOP.Generic
+        , -- | @since 1.1.0
+          PEq
+        , -- | @since 1.1.0
+          PShow
+        )
+    deriving
+        ( -- | @since 1.1.0
+          PlutusType
+        )
+        via (DeriveAsSOPStruct PECPoint)
+
+-- | @since wip
+pattern PECInfinity :: forall (s :: S). PECPoint s
+pattern PECInfinity <- PECI
+
+-- | @since wip
+pattern PECPoint :: forall (s :: S). Term s PGFElement -> Term s PGFElement -> PECPoint s
+pattern PECPoint x y <- PECP x y
+
+{-# COMPLETE PECInfinity, PECPoint #-}
+
+-- Helpers
+
+ponCurve ::
+    Term s PNatural ->
+    Term s PNatural ->
+    Term s PPositive ->
+    Term s PNatural ->
+    Term s PNatural ->
+    Term s PBool
+ponCurve x y fieldOrder curveA curveB =
+    let fieldOrder' = pupcast @PInteger fieldOrder
+     in plet (pupcast (x #* x)) $ \xSquared ->
+            let rhs = (pupcast x #* xSquared) #+ ((curveA #* xSquared) #+ curveB)
+             in (pmod # pupcast (y #* y) # fieldOrder') #== (pmod # pupcast rhs # fieldOrder')
+
+{-
 import Data.Kind (Type)
 import GHC.Generics (Generic)
 import Generics.SOP qualified as SOP
@@ -151,9 +402,9 @@ The optimized version structures EC points as 3-tuples, which are harder to inte
 {- | @Data@-encoded point on some elliptic curve, represented as a combination
 of:
 
-* The point's @x@ and @y@ co-ordinates, as elements of some finite field;
-* The order of the field used to define those co-ordinates; and
-* The curve's @A@ and @B@ constants.
+\* The point's @x@ and @y@ co-ordinates, as elements of some finite field;
+\* The order of the field used to define those co-ordinates; and
+\* The curve's @A@ and @B@ constants.
 
 This type is primarily designed as an exchange format (such as for use in
 datums); to do any work with such points, we recommend first converting to
@@ -472,17 +723,17 @@ multiplication of @p@ by @scaleFactor@, assuming that @p@ is defined over a
 finite field of order @fieldOrder@, and that @p@'s curve has an @A@ constant
 of @curveA@. In particular:
 
-* @'pecScale' fieldOrder curveA 0 p@ yields the point at infinity;
-* @'pecScale' fieldOrder curveA 1 p@ yields @p@;
-* @'pecScale' fieldOrder curveA (-1) p@ yields @'pecInvert' p@; and
-* @'pecScale' fieldOrder curveA 2 p@ yields @'pecDouble' fieldOrder curveA p@.
+\* @'pecScale' fieldOrder curveA 0 p@ yields the point at infinity;
+\* @'pecScale' fieldOrder curveA 1 p@ yields @p@;
+\* @'pecScale' fieldOrder curveA (-1) p@ yields @'pecInvert' p@; and
+\* @'pecScale' fieldOrder curveA 2 p@ yields @'pecDouble' fieldOrder curveA p@.
 
 Furthermore, 'pecScale' obeys the following laws:
 
-* @'pecScale' fieldOrder curveA (-n) = 'pecInvert' ('pecScale' fieldOrder curveA n)@
-* @'pecAdd' fo cA ('pecScale' fo cA n p) ('pecScale' fo cA m p) =
+\* @'pecScale' fieldOrder curveA (-n) = 'pecInvert' ('pecScale' fieldOrder curveA n)@
+\* @'pecAdd' fo cA ('pecScale' fo cA n p) ('pecScale' fo cA m p) =
    'pecScale' fo cA (n #+ m) p@
-* @'pecScale' fo cA m ('pecScale' fo cA n p) = 'pecScale' fo cA (n #* m) p@
+\* @'pecScale' fo cA m ('pecScale' fo cA n p) = 'pecScale' fo cA (n #* m) p@
 
 @since 1.1.0
 -}
@@ -558,4 +809,4 @@ ponCurve x y fieldOrder curveA curveB =
     let fieldOrder' = pupcast @PInteger fieldOrder
      in plet (pupcast (x #* x)) $ \xSquared ->
             let rhs = (pupcast x #* xSquared) #+ ((curveA #* xSquared) #+ curveB)
-             in (pmod # pupcast (y #* y) # fieldOrder') #== (pmod # rhs # fieldOrder')
+             in (pmod # pupcast (y #* y) # fieldOrder') #== (pmod # rhs # fieldOrder') -}
