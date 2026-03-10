@@ -4,6 +4,11 @@
 
 module Grumplestiltskin.EllipticCurve2 (
     -- * Types
+
+    -- ** Haskell
+    EC2Point,
+
+    -- ** Plutarch
     PEC2Point,
     PEC2Intermediate,
 
@@ -19,39 +24,39 @@ import Data.Kind (Type)
 import GHC.Generics (Generic)
 import Generics.SOP qualified as SOP
 import Grumplestiltskin.Degree2 (
+    D2Element,
     PD2Element,
+    PD2Intermediate,
+    pd2Divide,
     pd2FromElem,
-    pd2FromPoint,
+    pd2Square,
     pd2ToElem,
-    pd2ToPoint,
  )
-import Plutarch.Builtin.Integer (pexpModInteger)
-import Plutarch.Internal.Case (punsafeCase)
+import Plutarch.Internal.Lift (PLifted (PLifted))
 import Plutarch.Internal.PlutusType (PlutusType (PInner, pcon', pmatch'))
 import Plutarch.Prelude (
     DeriveAsSOPStruct (DeriveAsSOPStruct),
-    PAdditiveGroup (pnegate, pscaleInteger, (#-)),
-    PAdditiveMonoid (pzero),
-    PAdditiveSemigroup ((#+)),
+    PAdditiveGroup (pscaleInteger, (#-)),
+    PAdditiveSemigroup (pscalePositive, (#+)),
     PBool (PTrue),
+    PDelayed,
     PEq,
     PInteger,
-    PNatural,
+    PLiftable,
     PPositive,
     PShow,
     S,
     Term,
     pcon,
+    pdelay,
+    pforce,
     phoistAcyclic,
     pif,
     plam,
     plet,
     pmatch,
-    pmod,
     pone,
-    popaque,
     pscaleInteger,
-    pupcast,
     (#),
     (#*),
     (#+),
@@ -59,7 +64,22 @@ import Plutarch.Prelude (
     (#==),
     (:-->),
  )
+import Plutarch.Repr.Derive (DerivePLiftableAsRepr)
 import Plutarch.Unsafe (punsafeCoerce)
+
+-- | @since wip
+data EC2Point
+    = EC2Infinity
+    | EC2Point D2Element D2Element
+    deriving stock
+        ( -- | @since wip
+          Eq
+        , -- | @since wip
+          Show
+        , -- | @since wip
+          Generic
+        )
+    deriving anyclass (SOP.Generic)
 
 -- | @since wip
 data PEC2Point (s :: S)
@@ -82,6 +102,9 @@ data PEC2Point (s :: S)
           PlutusType
         )
         via (DeriveAsSOPStruct PEC2Point)
+
+-- | @since wip
+deriving via DerivePLiftableAsRepr PEC2Point EC2Point instance PLiftable PEC2Point
 
 -- | @since wip
 pec2FromElems :: forall (s :: S). Term s PD2Element -> Term s PD2Element -> Term s PEC2Point
@@ -111,24 +134,17 @@ pec2OnCurve fieldOrder rSquared constantA constantB p = pmatch p $ \case
                     rhs = ((x' #* xSquared) #+ pscaleInteger xSquared constantA) #+ pscaleInteger pone constantB
                  in pd2ToElem (punsafeCoerce rSquared) fieldOrder lhs #== pd2ToElem (punsafeCoerce rSquared) fieldOrder rhs
 
+-- | @since wip
 newtype PEC2Intermediate (s :: S)
     = PEC2Intermediate
         ( forall (r :: S -> Type).
           Term
             s
-            ( -- Field modulus
-              PPositive
-                :-->
-                -- Irreducible
-                PNatural
-                :-->
-                -- Curve A as a pair
-                PInteger
-                :--> PInteger
-                :-->
-                -- Take both points as separate X, Y pairs, with _singular_ Z, as it can
-                -- only be 0 or 1
-                (PInteger :--> PInteger :--> PInteger :--> PInteger :--> PNatural :--> r)
+            ( PPositive
+                :--> PPositive
+                :--> PD2Element
+                :--> PDelayed r
+                :--> (PD2Element :--> PD2Element :--> r)
                 :--> r
             )
         )
@@ -143,160 +159,83 @@ instance PlutusType PEC2Intermediate where
 instance PAdditiveSemigroup PEC2Intermediate where
     t1 #+ t2 = pmatch t1 $ \(PEC2Intermediate k1) ->
         pmatch t2 $ \(PEC2Intermediate k2) ->
-            pcon $ PEC2Intermediate $ plam $ \fieldModulus rSquared aR aI k ->
+            pcon $ PEC2Intermediate $ plam $ \fieldMod rSquared curveA whenInf whenNot ->
                 k1
-                    # fieldModulus
+                    # fieldMod
                     # rSquared
-                    # aR
-                    # aI
+                    # curveA
+                    # pdelay (k2 # fieldMod # rSquared # curveA # whenInf # whenNot)
                     # plam
-                        ( \xR1 xI1 yR1 yI1 z1 ->
+                        ( \x1 y1 ->
                             k2
-                                # fieldModulus
+                                # fieldMod
                                 # rSquared
-                                # aR
-                                # aI
+                                # curveA
+                                # pdelay (k1 # fieldMod # rSquared # curveA # whenInf # whenNot)
                                 # plam
-                                    ( \xR2 xI2 yR2 yI2 z2 ->
-                                        -- Note (Koz, 27/02/26): We use this somewhat odd form to save on
-                                        -- code size. We essentially need a four-way branch:
-                                        --
-                                        -- \* If z1 = 0 and z2 = 0, we want to just give the normalized point
-                                        --   at infinity
-                                        -- \* If z1 = 0, then we want to produce the second argument
-                                        -- \* If z2 = 0, then we want to produce the first argument
-                                        -- \* If z1 = 1 and z2 = 1, we need to go through 'regular' addition
-                                        --
-                                        -- No matter how we do this, we need at least two builtin calls to
-                                        -- distinguish the cases. The naive method (using nested `pif`s)
-                                        -- generates a lot more code, as we have to have `Case` inside of
-                                        -- `Case`. By using a bit of arithmetic (still using two builtin
-                                        -- calls), we can collapse this into a single `Case`, saving a bit
-                                        -- of code size.
-                                        punsafeCase
-                                            ((z1 #* pnatTwo) #+ z2)
-                                            [ -- z1 = 0, z2 = 0, as 2 * 0 + 0 = 0
-                                              popaque (callZero # k)
-                                            , -- z1 = 0, z2 = 1, as 2 * 0 + 1 = 1
-                                              popaque (k # xR2 # xI2 # yR2 # yI2 # z2)
-                                            , -- z1 = 1, z2 = 0, as 2 * 1 + 0 = 2
-                                              popaque (k # xR1 # xI1 # yR1 # yI1 # z1)
-                                            , -- z1 = 1, z2 = 1, as 2 * 1 + 1 = 3
-                                              popaque
-                                                ( plet (xR2 #- xR1) $ \xRDiff ->
-                                                    plet (xI2 #- xI1) $ \xIDiff ->
-                                                        pif
-                                                            (xRDiff #== 0)
-                                                            ( pif
-                                                                (xIDiff #== 0)
-                                                                ( plet (yR2 #- yR1) $ \yRDiff ->
-                                                                    pif
-                                                                        (yRDiff #== 0)
-                                                                        ( plet (yI2 #- yI1) $ \yIDiff ->
-                                                                            pif
-                                                                                (yIDiff #== 0)
-                                                                                -- Double
-                                                                                (doubleCPS # fieldModulus # rSquared # aR # aI # xR1 # xI1 # yR1 # yI1 # k)
-                                                                                -- Infinity
-                                                                                (callZero # k)
-                                                                        )
-                                                                        -- Infinity
-                                                                        (callZero # k)
-                                                                )
-                                                                -- Do regular add
-                                                                (ecAddCPS # fieldModulus # rSquared # xR1 # xI1 # yR1 # yI1 # yR1 # yI2 # xRDiff # xIDiff # k)
-                                                            )
-                                                            -- Do regular add
-                                                            (ecAddCPS # fieldModulus # rSquared # xR1 # xI1 # yR1 # yI1 # yR1 # yI2 # xRDiff # xIDiff # k)
-                                                )
-                                            ]
+                                    ( \x2 y2 ->
+                                        pif
+                                            (x1 #== x2)
+                                            ( pif
+                                                (y1 #== y2)
+                                                (pec2Double' # fieldMod # rSquared # curveA # whenNot # pd2FromElem x1 # pd2FromElem y1)
+                                                (pforce whenInf)
+                                            )
+                                            ( plet (pd2FromElem x1) $ \x1' ->
+                                                plet (pd2FromElem y1) $ \y1' ->
+                                                    plet (pd2FromElem x2) $ \x2' ->
+                                                        plet (pd2FromElem y2) $ \y2' ->
+                                                            plet (x1' #- x2') $ \xDiff ->
+                                                                plet (pd2Divide (y1' #- y2') xDiff) $ \lambda ->
+                                                                    plet (pd2Square lambda #- xDiff) $ \newX ->
+                                                                        let newY = (lambda #* (x1' #- newX)) #- y1'
+                                                                            rSquared' = punsafeCoerce rSquared
+                                                                         in whenNot # pd2ToElem rSquared' fieldMod newX # pd2ToElem rSquared' fieldMod newY
+                                            )
                                     )
                         )
-
--- | @since wip
-instance PAdditiveMonoid PEC2Intermediate where
-    pzero = pcon $ PEC2Intermediate $ plam $ \_ _ _ _ k -> callZero # k
-
--- | @since wip
-instance PAdditiveGroup PEC2Intermediate where
-    pnegate = phoistAcyclic $ plam $ \t -> pmatch t $ \(PEC2Intermediate k1) ->
-        pcon $ PEC2Intermediate $ plam $ \fieldModulus rSquared aR aI k ->
-            k1
-                # fieldModulus
-                # rSquared
-                # aR
-                # aI
-                # plam
-                    ( \xR1 xI1 yR1 yI1 z1 ->
-                        k # xR1 # xI1 # (pnegate # yR1) # (pnegate # yI1) # z1
-                    )
 
 -- | @since wip
 pec2ToIntermediate ::
     forall (s :: S).
     Term s PEC2Point ->
     Term s PEC2Intermediate
-pec2ToIntermediate p = pcon $ PEC2Intermediate $ plam $ \_ _ _ _ k ->
-    pmatch p $ \case
-        PEC2Infinity -> callZero # k
-        PEC2Point x y -> pd2FromPoint x $ \x1 x2 ->
-            pd2FromPoint y $ \y1 y2 -> k # pupcast x1 # pupcast x2 # pupcast y1 # pupcast y2 # pnatOne
+pec2ToIntermediate p = pmatch p $ \case
+    PEC2Infinity -> pcon $ PEC2Intermediate $ plam $ \_ _ _ whenInf _ -> pforce whenInf
+    PEC2Point x y -> pcon $ PEC2Intermediate $ plam $ \_ _ _ _ whenNot -> whenNot # x # y
 
 -- | @since wip
 pec2FromIntermediate ::
     forall (s :: S).
     Term s PPositive ->
-    Term s PNatural ->
-    Term s PInteger ->
-    Term s PInteger ->
+    Term s PPositive ->
+    Term s PD2Element ->
     Term s PEC2Intermediate ->
     Term s PEC2Point
-pec2FromIntermediate fieldMod rSquared aI aR p = pmatch p $ \(PEC2Intermediate k1) ->
-    k1
-        # fieldMod
-        # rSquared
-        # aI
-        # aR
-        # plam
-            ( \xR xI yR yI z ->
-                pif
-                    (z #== pnatZero)
-                    (pcon PEC2Infinity)
-                    ( let fieldMod' = pupcast fieldMod
-                          xR' = punsafeCoerce (pmod # xR # fieldMod')
-                          xI' = punsafeCoerce (pmod # xI # fieldMod')
-                          yR' = punsafeCoerce (pmod # yR # fieldMod')
-                          yI' = punsafeCoerce (pmod # yI # fieldMod')
-                       in pcon . PEC2Point (pd2ToPoint xR' xI' . punsafeCoerce $ fieldMod) . pd2ToPoint yR' yI' . punsafeCoerce $ fieldMod
-                    )
-            )
+pec2FromIntermediate fieldMod rSquared curveA p = pmatch p $ \(PEC2Intermediate k) ->
+    k # fieldMod # rSquared # curveA # pdelay (pcon PEC2Infinity) # plam (\x -> pcon . PEC2Point x)
 
+-- | @since wip
 pec2Double ::
     forall (s :: S).
-    Term s PEC2Intermediate ->
-    Term s PEC2Intermediate
+    Term s PEC2Intermediate -> Term s PEC2Intermediate
 pec2Double t = pmatch t $ \(PEC2Intermediate k1) ->
-    pcon $ PEC2Intermediate $ plam $ \fieldModulus rSquared aR aI k ->
+    pcon $ PEC2Intermediate $ plam $ \fieldMod rSquared curveA whenInf whenNot ->
         k1
-            # fieldModulus
+            # fieldMod
             # rSquared
-            # aR
-            # aI
+            # curveA
+            # whenInf
             # plam
-                ( \xR1 xI1 yR1 yI1 z1 ->
-                    punsafeCase
-                        z1
-                        [ -- When z1 = 0, we have the point at infinity, so we have nothing to
-                          -- do.
-                          popaque (callZero # k)
-                        , -- When z1 = 1, we have an actual point.
-                          popaque (doubleCPS # fieldModulus # rSquared # aR # aI # xR1 # xI1 # yR1 # yI1 # k)
-                        ]
+                ( \x y ->
+                    plet (pd2FromElem x) $ \x' ->
+                        plet (pd2FromElem y) $ \y' ->
+                            pec2Double' # fieldMod # rSquared # curveA # whenNot # x' # y'
                 )
 
 -- Helpers
 
-ecAddCPS ::
+pec2Double' ::
     forall (r :: S -> Type) (s :: S).
     Term
         s
@@ -304,539 +243,27 @@ ecAddCPS ::
           PPositive
             :-->
             -- Irreducible
-            PNatural
+            PPositive
             :-->
-            -- X1
-            PInteger
-            :--> PInteger
+            -- Curve A constant
+            PD2Element
             :-->
-            -- Y1
-            PInteger
-            :--> PInteger
+            -- Regular point continuation
+            (PD2Element :--> PD2Element :--> r)
             :-->
-            -- Y2
-            PInteger
-            :--> PInteger
+            -- X
+            PD2Intermediate
             :-->
-            -- X2 - X1
-            PInteger
-            :--> PInteger
-            :-->
-            -- Continuation
-            (PInteger :--> PInteger :--> PInteger :--> PInteger :--> PNatural :--> r)
+            -- Y
+            PD2Intermediate
             :--> r
         )
-ecAddCPS = phoistAcyclic $ plam $ \fieldModulus rSquared x1R x1I y1R y1I y2R y2I xDiffR xDiffI k ->
-    squareCPS
-        # rSquared
-        # xDiffR
-        # xDiffI
-        # plam
-            ( \bigB2R bigB2I ->
-                timesCPS
-                    # rSquared
-                    # bigB2R
-                    # bigB2I
-                    # xDiffR
-                    # xDiffI
-                    # plam
-                        ( \bigB3R bigB3I ->
-                            plet (pmod # bigB3R # pupcast fieldModulus) $ \bigB3ReducedR ->
-                                plet (pmod # bigB3I # pupcast fieldModulus) $ \bigB3ReducedI ->
-                                    pif
-                                        ((bigB3ReducedR #+ bigB3ReducedI) #== 0)
-                                        (callZero # k)
-                                        ( plet (y2R #- y1R) $ \yDiffR ->
-                                            plet (y2I #- y1I) $ \yDiffI ->
-                                                squareCPS
-                                                    # rSquared
-                                                    # yDiffR
-                                                    # yDiffI
-                                                    # plam
-                                                        ( \bigASquaredR bigASquaredI ->
-                                                            subCPS
-                                                                # bigASquaredR
-                                                                # bigASquaredI
-                                                                # bigB3ReducedR
-                                                                # bigB3ReducedI
-                                                                # plam
-                                                                    ( \bigCLHSR bigCLHSI ->
-                                                                        timesCPS
-                                                                            # rSquared
-                                                                            # bigB2R
-                                                                            # bigB2I
-                                                                            # x1R
-                                                                            # x1I
-                                                                            # plam
-                                                                                ( \b2x1R b2x1I ->
-                                                                                    scaleCPS
-                                                                                        # b2x1R
-                                                                                        # b2x1I
-                                                                                        # 2
-                                                                                        # plam
-                                                                                            ( \bigCRHSR bigCRHSI ->
-                                                                                                subCPS
-                                                                                                    # bigCLHSR
-                                                                                                    # bigCLHSI
-                                                                                                    # bigCRHSR
-                                                                                                    # bigCRHSI
-                                                                                                    # plam
-                                                                                                        ( \bigCR bigCI ->
-                                                                                                            timesCPS
-                                                                                                                # rSquared
-                                                                                                                # xDiffR
-                                                                                                                # xDiffI
-                                                                                                                # bigCR
-                                                                                                                # bigCI
-                                                                                                                # plam
-                                                                                                                    ( \newXR newXI ->
-                                                                                                                        timesCPS
-                                                                                                                            # rSquared
-                                                                                                                            # bigB3ReducedR
-                                                                                                                            # bigB3ReducedI
-                                                                                                                            # y1R
-                                                                                                                            # y1I
-                                                                                                                            # plam
-                                                                                                                                ( \newYRHSR newYRHSI ->
-                                                                                                                                    subCPS
-                                                                                                                                        # b2x1R
-                                                                                                                                        # b2x1I
-                                                                                                                                        # bigCR
-                                                                                                                                        # bigCI
-                                                                                                                                        # plam
-                                                                                                                                            ( \newYLHSR newYLHSI ->
-                                                                                                                                                timesCPS
-                                                                                                                                                    # rSquared
-                                                                                                                                                    # yDiffR
-                                                                                                                                                    # yDiffI
-                                                                                                                                                    # newYLHSR
-                                                                                                                                                    # newYLHSI
-                                                                                                                                                    # plam
-                                                                                                                                                        ( \newYLHSR' newYLHSI' ->
-                                                                                                                                                            subCPS
-                                                                                                                                                                # newYLHSR'
-                                                                                                                                                                # newYLHSI'
-                                                                                                                                                                # newYRHSR
-                                                                                                                                                                # newYRHSI
-                                                                                                                                                                # plam
-                                                                                                                                                                    ( \newYR newYI ->
-                                                                                                                                                                        divideCPS
-                                                                                                                                                                            # fieldModulus
-                                                                                                                                                                            # rSquared
-                                                                                                                                                                            # newXR
-                                                                                                                                                                            # newXI
-                                                                                                                                                                            # bigB3ReducedR
-                                                                                                                                                                            # bigB3ReducedI
-                                                                                                                                                                            # plam
-                                                                                                                                                                                ( \newXR' newXI' ->
-                                                                                                                                                                                    divideCPS
-                                                                                                                                                                                        # fieldModulus
-                                                                                                                                                                                        # rSquared
-                                                                                                                                                                                        # newYR
-                                                                                                                                                                                        # newYI
-                                                                                                                                                                                        # bigB3ReducedR
-                                                                                                                                                                                        # bigB3ReducedI
-                                                                                                                                                                                        # plam
-                                                                                                                                                                                            ( \newYR' newYI' ->
-                                                                                                                                                                                                k # newXR' # newXI' # newYR' # newYI' # pnatOne
-                                                                                                                                                                                            )
-                                                                                                                                                                                )
-                                                                                                                                                                    )
-                                                                                                                                                        )
-                                                                                                                                            )
-                                                                                                                                )
-                                                                                                                    )
-                                                                                                        )
-                                                                                            )
-                                                                                )
-                                                                    )
-                                                        )
-                                        )
-                        )
-            )
-
-callZero ::
-    forall (r :: S -> Type) (s :: S).
-    Term
-        s
-        ( (PInteger :--> PInteger :--> PInteger :--> PInteger :--> PNatural :--> r)
-            :--> r
-        )
-callZero = phoistAcyclic $ plam $ \k -> k # 0 # 0 # 0 # 0 # pnatZero
-
-pnatZero :: forall (s :: S). Term s PNatural
-pnatZero = punsafeCoerce @_ @PInteger 0
-
-pnatOne :: forall (s :: S). Term s PNatural
-pnatOne = punsafeCoerce @_ @PInteger 1
-
-pnatTwo :: forall (s :: S). Term s PNatural
-pnatTwo = punsafeCoerce @_ @PInteger 2
-
-doubleCPS ::
-    forall (r :: S -> Type) (s :: S).
-    Term
-        s
-        ( -- Field modulus
-          PPositive
-            :-->
-            -- Irreducible
-            PNatural
-            :-->
-            -- Curve A as a pair
-            PInteger
-            :--> PInteger
-            :-->
-            -- X point as pair
-            PInteger
-            :--> PInteger
-            :-->
-            -- Y point as pair
-            PInteger
-            :--> PInteger
-            :-->
-            -- Continuation
-            (PInteger :--> PInteger :--> PInteger :--> PInteger :--> PNatural :--> r)
-            :--> r
-        )
-doubleCPS = phoistAcyclic $ plam $ \fieldMod rSquared aR aI xR xI yR yI k ->
-    squareCPS
-        # rSquared
-        # yR
-        # yI
-        # plam
-            ( \y2R y2I ->
-                timesCPS
-                    # rSquared
-                    # y2R
-                    # y2I
-                    # yR
-                    # yI
-                    # plam
-                        ( \y3R y3I ->
-                            scaleCPS
-                                # y3R
-                                # y3I
-                                # 8
-                                # plam
-                                    ( \newZR newZI ->
-                                        plet (pmod # newZR # pupcast fieldMod) $ \newZReducedR ->
-                                            plet (pmod # newZI # pupcast fieldMod) $ \newZReducedI ->
-                                                pif
-                                                    ((newZReducedR #+ newZReducedI) #== 0)
-                                                    (callZero # k)
-                                                    (go # fieldMod # rSquared # aR # aI # xR # xI # yR # yI # y2R # y2I # newZReducedR # newZReducedI # k)
-                                    )
-                        )
-            )
-  where
-    go ::
-        forall (r' :: S -> Type) (s' :: S).
-        Term
-            s'
-            ( -- Field modulus
-              PPositive
-                :-->
-                -- Irreducible
-                PNatural
-                :-->
-                -- Curve A as pair
-                PInteger
-                :--> PInteger
-                :-->
-                -- X point as pair
-                PInteger
-                :--> PInteger
-                :-->
-                -- Y point as pair
-                PInteger
-                :--> PInteger
-                :-->
-                -- Y^2
-                PInteger
-                :--> PInteger
-                :-->
-                -- 8Y^3
-                PInteger
-                :--> PInteger
-                :-->
-                -- Continuation
-                (PInteger :--> PInteger :--> PInteger :--> PInteger :--> PNatural :--> r')
-                :--> r'
-            )
-    go = phoistAcyclic $ plam $ \fieldMod rSquared aR aI xR xI yR yI y2R y2I newZR newZI k ->
-        squareCPS
-            # rSquared
-            # xR
-            # xI
-            # plam
-                ( \x2R x2I ->
-                    scaleCPS
-                        # x2R
-                        # x2I
-                        # 3
-                        # plam
-                            ( \threeX2R threeX2I ->
-                                addCPS
-                                    # aR
-                                    # aI
-                                    # threeX2R
-                                    # threeX2I
-                                    # plam
-                                        ( \bigAR bigAI ->
-                                            squareCPS
-                                                # rSquared
-                                                # bigAR
-                                                # bigAI
-                                                # plam
-                                                    ( \bigA2R bigA2I ->
-                                                        timesCPS
-                                                            # rSquared
-                                                            # xR
-                                                            # xI
-                                                            # y2R
-                                                            # y2I
-                                                            # plam
-                                                                ( \cR cI ->
-                                                                    scaleCPS
-                                                                        # cR
-                                                                        # cI
-                                                                        # (-8)
-                                                                        # plam
-                                                                            ( \neg8CR neg8CI ->
-                                                                                addCPS
-                                                                                    # bigA2R
-                                                                                    # bigA2I
-                                                                                    # neg8CR
-                                                                                    # neg8CI
-                                                                                    # plam
-                                                                                        ( \bigDR bigDI ->
-                                                                                            timesCPS
-                                                                                                # rSquared
-                                                                                                # yR
-                                                                                                # yI
-                                                                                                # bigDR
-                                                                                                # bigDI
-                                                                                                # plam
-                                                                                                    ( \bdR bdI ->
-                                                                                                        scaleCPS
-                                                                                                            # bdR
-                                                                                                            # bdI
-                                                                                                            # 2
-                                                                                                            # plam
-                                                                                                                ( \newXR newXI ->
-                                                                                                                    squareCPS
-                                                                                                                        # rSquared
-                                                                                                                        # y2R
-                                                                                                                        # y2I
-                                                                                                                        # plam
-                                                                                                                            ( \y4R y4I ->
-                                                                                                                                scaleCPS
-                                                                                                                                    # y4R
-                                                                                                                                    # y4I
-                                                                                                                                    # (-8)
-                                                                                                                                    # plam
-                                                                                                                                        ( \newYRHSR newYRHSI ->
-                                                                                                                                            scaleCPS
-                                                                                                                                                # cR
-                                                                                                                                                # cI
-                                                                                                                                                # 4
-                                                                                                                                                # plam
-                                                                                                                                                    ( \fourCR fourCI ->
-                                                                                                                                                        subCPS
-                                                                                                                                                            # fourCR
-                                                                                                                                                            # fourCI
-                                                                                                                                                            # bigDR
-                                                                                                                                                            # bigDI
-                                                                                                                                                            # plam
-                                                                                                                                                                ( \newYInnerLHSR newYInnerLHSI ->
-                                                                                                                                                                    timesCPS
-                                                                                                                                                                        # rSquared
-                                                                                                                                                                        # bigAR
-                                                                                                                                                                        # bigAI
-                                                                                                                                                                        # newYInnerLHSR
-                                                                                                                                                                        # newYInnerLHSI
-                                                                                                                                                                        # plam
-                                                                                                                                                                            ( \newYLHSR newYLHSI ->
-                                                                                                                                                                                subCPS
-                                                                                                                                                                                    # newYLHSR
-                                                                                                                                                                                    # newYLHSI
-                                                                                                                                                                                    # newYRHSR
-                                                                                                                                                                                    # newYRHSI
-                                                                                                                                                                                    # plam
-                                                                                                                                                                                        ( \newYR newYI ->
-                                                                                                                                                                                            divideCPS
-                                                                                                                                                                                                # fieldMod
-                                                                                                                                                                                                # rSquared
-                                                                                                                                                                                                # newXR
-                                                                                                                                                                                                # newXI
-                                                                                                                                                                                                # newZR
-                                                                                                                                                                                                # newZI
-                                                                                                                                                                                                # plam
-                                                                                                                                                                                                    ( \newXR' newXI' ->
-                                                                                                                                                                                                        divideCPS
-                                                                                                                                                                                                            # fieldMod
-                                                                                                                                                                                                            # rSquared
-                                                                                                                                                                                                            # newYR
-                                                                                                                                                                                                            # newYI
-                                                                                                                                                                                                            # newZR
-                                                                                                                                                                                                            # newZI
-                                                                                                                                                                                                            # plam
-                                                                                                                                                                                                                ( \newYR' newYI' ->
-                                                                                                                                                                                                                    k # newXR' # newXI' # newYR' # newYI' # pnatOne
-                                                                                                                                                                                                                )
-                                                                                                                                                                                                    )
-                                                                                                                                                                                        )
-                                                                                                                                                                            )
-                                                                                                                                                                )
-                                                                                                                                                    )
-                                                                                                                                        )
-                                                                                                                            )
-                                                                                                                )
-                                                                                                    )
-                                                                                        )
-                                                                            )
-                                                                )
-                                                    )
-                                        )
-                            )
-                )
-
-divideCPS ::
-    forall (r :: S -> Type) (s :: S).
-    Term
-        s
-        ( -- Field modulus
-          PPositive
-            :-->
-            -- Irreducible :-->
-            PNatural
-            :-->
-            -- Dividend as pair
-            PInteger
-            :--> PInteger
-            :-->
-            -- Divisor as pair
-            PInteger
-            :--> PInteger
-            :-->
-            -- Continuation
-            (PInteger :--> PInteger :--> r)
-            :--> r
-        )
-divideCPS = phoistAcyclic $ plam $ \fieldModulus rSquared u v x y k ->
-    let recipExpr = (x #* x) #- (pupcast rSquared #* (y #* y))
-        ux = u #* x
-        yv = y #* v
-        xv = x #* v
-        uy = u #* y
-     in plet (pexpModInteger # recipExpr # (-1) # pupcast fieldModulus) $ \recipr ->
-            k # ((ux #- (5 #* yv)) #* recipr) # ((xv #- uy) #* recipr)
-
-squareCPS ::
-    forall (r :: S -> Type) (s :: S).
-    Term
-        s
-        ( -- Irreducible
-          PNatural
-            :-->
-            -- Point as pair
-            PInteger
-            :--> PInteger
-            :-->
-            -- Continuation
-            (PInteger :--> PInteger :--> r)
-            :--> r
-        )
-squareCPS = phoistAcyclic $ plam $ \rSquared xR xI k ->
-    let xRSquared = xR #* xR
-        xISquared = xI #* xI
-        xRxI = xR #* xI
-     in k # (xRSquared #+ (pupcast rSquared #* xISquared)) # (2 #* xRxI)
-
-scaleCPS ::
-    forall (r :: S -> Type) (s :: S).
-    Term
-        s
-        ( -- Point as a pair
-          PInteger
-            :--> PInteger
-            :-->
-            -- Scalar
-            PInteger
-            :-->
-            -- Continuation
-            (PInteger :--> PInteger :--> r)
-            :--> r
-        )
-scaleCPS = phoistAcyclic $ plam $ \xR xI scalar k ->
-    let xRScaled = xR #* scalar
-        xIScaled = xI #* scalar
-     in k # xRScaled # xIScaled
-
-addCPS ::
-    forall (r :: S -> Type) (s :: S).
-    Term
-        s
-        ( -- First point as pair
-          PInteger
-            :--> PInteger
-            :-->
-            -- Second point as pair
-            PInteger
-            :--> PInteger
-            :-->
-            -- Continuation
-            (PInteger :--> PInteger :--> r)
-            :--> r
-        )
-addCPS = phoistAcyclic $ plam $ \xR xI yR yI k ->
-    let zR = xR #+ yR
-        zI = xI #+ yI
-     in k # zR # zI
-
-subCPS ::
-    forall (r :: S -> Type) (s :: S).
-    Term
-        s
-        ( -- First point as pair
-          PInteger
-            :--> PInteger
-            :-->
-            -- Second point as pair
-            PInteger
-            :--> PInteger
-            :-->
-            -- Continuation
-            (PInteger :--> PInteger :--> r)
-            :--> r
-        )
-subCPS = phoistAcyclic $ plam $ \xR xI yR yI k ->
-    let zR = xR #- yR
-        zI = xI #- yI
-     in k # zR # zI
-
-timesCPS ::
-    forall (r :: S -> Type) (s :: S).
-    Term
-        s
-        ( -- Irreducible
-          PNatural
-            :-->
-            -- First point as pair
-            PInteger
-            :--> PInteger
-            :-->
-            -- Second point as pair
-            PInteger
-            :--> PInteger
-            :-->
-            -- Continuation
-            (PInteger :--> PInteger :--> r)
-            :--> r
-        )
-timesCPS = phoistAcyclic $ plam $ \rSquared xR xI yR yI k ->
-    let xRyR = xR #* yR
-        imaginaryPart = (xR #* yI) #+ (xI #* yR)
-        rest = pupcast rSquared #* (yR #* yI)
-     in k # (xRyR #+ rest) # imaginaryPart
+pec2Double' = phoistAcyclic $ plam $ \fieldMod rSquared curveA whenNot x y ->
+    let posTwo = punsafeCoerce @_ @PInteger 2
+        posThree = punsafeCoerce @_ @PInteger 3
+        topOfLambda = pscalePositive (pd2Square x) posThree #+ pd2FromElem curveA
+     in plet (pd2Divide topOfLambda (pscalePositive y posTwo)) $ \lambda ->
+            plet (pd2Square lambda #- pscalePositive x posTwo) $ \newX ->
+                let newY = (lambda #* (x #- newX)) #- y
+                    rSquared' = punsafeCoerce rSquared
+                 in whenNot # pd2ToElem rSquared' fieldMod newX # pd2ToElem rSquared' fieldMod newY

@@ -462,13 +462,14 @@ pd2Divide w z = pmatch w $ \(PD2Intermediate k1) ->
                             # order
                             # plam
                                 ( \x y ->
-                                    let recipExpr = (x #* x) #- (pupcast rSquared #* (y #* y))
+                                    let rSquared' = pupcast rSquared
+                                        recipExpr = (x #* x) #- (rSquared' #* (y #* y))
                                         ux = u #* x
                                         yv = y #* v
                                         xv = x #* v
                                         uy = u #* y
                                      in plet (pexpModInteger # recipExpr # (-1) # pupcast order) $ \recipr ->
-                                            k # ((ux #- (5 #* yv)) #* recipr) # ((xv #- uy) #* recipr)
+                                            k # ((ux #- (rSquared' #* yv)) #* recipr) # ((xv #- uy) #* recipr)
                                 )
                     )
 

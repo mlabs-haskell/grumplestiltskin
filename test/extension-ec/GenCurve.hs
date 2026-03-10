@@ -1,6 +1,9 @@
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# OPTIONS_GHC -O2 #-}
+{-# OPTIONS_GHC -fspecialise-aggressively #-}
 
 module GenCurve (
     GF11Elem2 (GF11Elem2),
@@ -10,15 +13,27 @@ module GenCurve (
 import Control.Category ((.))
 import Control.Monad (guard)
 import Data.Bifunctor (Bifunctor (bimap))
+import Data.Coerce (coerce)
+import Data.Euclidean (
+    Euclidean (degree, quot, quotRem, rem),
+    GcdDomain (gcd),
+    gcdExt,
+ )
 import Data.Kind (Type)
+import Data.Poly.Semiring (deriv, leading, toPoly)
 import Data.Semiring (
     Ring (negate),
     Semiring (fromNatural, one, plus, times, zero),
     (*),
     (+),
+    (-),
  )
+import Data.Vector.Generic qualified as VG
+import Data.Vector.Generic.Mutable qualified as VGM
 import Data.Vector.Sized (Vector)
 import Data.Vector.Sized qualified as Vector
+import Data.Vector.Unboxed qualified as VU
+import Data.Vector.Unboxed.Mutable qualified as VUM
 import GHC.TypeNats (KnownNat)
 import Numeric.Natural (Natural)
 import Test.QuickCheck (
@@ -30,11 +45,13 @@ import Test.QuickCheck (
     suchThat,
  )
 import Prelude (
-    Bool,
-    Eq ((/=), (==)),
+    Bool (False, True),
+    Eq ((==)),
     Int,
     Integral,
+    Maybe (Just, Nothing),
     Show (show),
+    const,
     filter,
     mod,
     pure,
@@ -128,6 +145,27 @@ instance Semiring GF11Elem2 where
 instance Ring GF11Elem2 where
     negate (GF11E2 (r, i)) = GF11E2 . reduce $ (negate r, negate i)
 
+instance GcdDomain GF11Elem2
+
+instance Euclidean GF11Elem2 where
+    quot (GF11E2 (u, v)) = \case
+        GF11E2 (0, 0) -> P.error "Division by zero"
+        GF11E2 (x, y) ->
+            let recipExpr = (x * x) - (2 * y * y)
+                (_, recipr) = gcdExt recipExpr 11
+                ux = u * x
+                yv = y * v
+                xv = x * v
+                uy = u * y
+             in GF11E2 . reduce $ ((ux - (2 * yv)) * recipr, (xv - uy) * recipr)
+    rem _ = \case
+        GF11E2 (0, 0) -> P.error "Division by zero"
+        _ -> zero
+    quotRem x y =
+        let !q = quot x y
+         in (q, zero)
+    degree = const zero
+
 instance Arbitrary GF11Elem2 where
     arbitrary = GF11E2 <$> liftArbitrary2 choose11 choose11
     shrink (GF11E2 (r, i)) = do
@@ -136,6 +174,22 @@ instance Arbitrary GF11Elem2 where
         guard (r' >= 0)
         guard (i' >= 0)
         pure . GF11E2 $ (r', i')
+
+instance VU.IsoUnbox GF11Elem2 (Int, Int) where
+    {-# INLINE toURepr #-}
+    toURepr = coerce
+    {-# INLINE fromURepr #-}
+    fromURepr = coerce
+
+newtype instance VU.MVector s GF11Elem2 = MV_Foo (VU.MVector s (Int, Int))
+
+newtype instance VU.Vector GF11Elem2 = V_Foo (VU.Vector (Int, Int))
+
+deriving via (VU.As GF11Elem2 (Int, Int)) instance VGM.MVector VUM.MVector GF11Elem2
+
+deriving via (VU.As GF11Elem2 (Int, Int)) instance VG.Vector VU.Vector GF11Elem2
+
+instance VU.Unbox GF11Elem2
 
 pattern GF11Elem2 :: Natural -> Natural -> GF11Elem2
 pattern GF11Elem2 r i <- (unpack -> (r, i))
@@ -153,12 +207,6 @@ allEC = [(GF11E2 (r1, i1), GF11E2 (r2, i2)) | r1 <- go, i1 <- go, r2 <- go, i2 <
 choose11 :: Gen Int
 choose11 = chooseInt (0, 10)
 
-four :: GF11Elem2
-four = GF11E2 (4, 0)
-
-twentySeven :: GF11Elem2
-twentySeven = GF11E2 (5, 0)
-
 unpack :: GF11Elem2 -> (Natural, Natural)
 unpack (GF11E2 p) = bimap P.fromIntegral P.fromIntegral p
 
@@ -174,7 +222,12 @@ cube :: forall (a :: Type). (Semiring a) => a -> a
 cube x = x * x * x
 
 isNonSingular :: GF11Elem2 -> GF11Elem2 -> Bool
-isNonSingular curveA curveB = ((four * cube curveA) + (twentySeven * square curveB)) /= zero
+isNonSingular curveA curveB =
+    let f = toPoly @_ @VU.Vector [curveB, curveA, zero, one]
+        f' = deriv f
+     in case leading (gcd f f') of
+            Nothing -> True
+            Just _ -> False
 
 onCurve :: GF11Elem2 -> GF11Elem2 -> (GF11Elem2, GF11Elem2) -> Bool
 onCurve curveA curveB (x, y) = square y == (cube x + (curveA * x) + curveB)
