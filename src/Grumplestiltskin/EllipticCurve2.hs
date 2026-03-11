@@ -31,6 +31,7 @@ import Grumplestiltskin.Degree2 (
     pd2FromElem,
     pd2Square,
     pd2ToElem,
+    pd2Zero,
  )
 import Plutarch.Internal.Lift (PLifted (PLifted))
 import Plutarch.Internal.PlutusType (PlutusType (PInner, pcon', pmatch'))
@@ -174,24 +175,28 @@ instance PAdditiveSemigroup PEC2Intermediate where
                                 # pdelay (k1 # fieldMod # rSquared # curveA # whenInf # whenNot)
                                 # plam
                                     ( \x2 y2 ->
-                                        pif
-                                            (x1 #== x2)
-                                            ( pif
-                                                (y1 #== y2)
-                                                (pec2Double' # fieldMod # rSquared # curveA # whenNot # pd2FromElem x1 # pd2FromElem y1)
-                                                (pforce whenInf)
-                                            )
-                                            ( plet (pd2FromElem x1) $ \x1' ->
+                                        plet (pd2FromElem x1) $ \x1' ->
+                                            plet (pd2FromElem x2) $ \x2' ->
                                                 plet (pd2FromElem y1) $ \y1' ->
-                                                    plet (pd2FromElem x2) $ \x2' ->
-                                                        plet (pd2FromElem y2) $ \y2' ->
-                                                            plet (x1' #- x2') $ \xDiff ->
-                                                                plet (pd2Divide (y1' #- y2') xDiff) $ \lambda ->
-                                                                    plet (pd2Square lambda #- xDiff) $ \newX ->
-                                                                        let newY = (lambda #* (x1' #- newX)) #- y1'
-                                                                            rSquared' = punsafeCoerce rSquared
-                                                                         in whenNot # pd2ToElem rSquared' fieldMod newX # pd2ToElem rSquared' fieldMod newY
-                                            )
+                                                    plet (pd2FromElem y2) $ \y2' ->
+                                                        let rSquared' = punsafeCoerce rSquared
+                                                         in plet (x1' #- x2') $ \xDiff' ->
+                                                                plet (y1' #- y2') $ \yDiff' ->
+                                                                    pif
+                                                                        (pd2ToElem rSquared' fieldMod xDiff' #== pd2Zero)
+                                                                        ( pif
+                                                                            (pd2ToElem rSquared' fieldMod yDiff' #== pd2Zero)
+                                                                            -- Double
+                                                                            (pec2Double' # fieldMod # rSquared # curveA # whenInf # whenNot # x1' # y1' # y1)
+                                                                            -- Infinity
+                                                                            (pforce whenInf)
+                                                                        )
+                                                                        -- Add
+                                                                        ( plet (pd2Divide yDiff' xDiff') $ \lambda ->
+                                                                            plet (pd2Square lambda #- xDiff') $ \newX ->
+                                                                                plet ((lambda #* (x1' #- newX)) #- y1') $ \newY ->
+                                                                                    whenNot # pd2ToElem rSquared' fieldMod newX # pd2ToElem rSquared' fieldMod newY
+                                                                        )
                                     )
                         )
 
@@ -228,9 +233,7 @@ pec2Double t = pmatch t $ \(PEC2Intermediate k1) ->
             # whenInf
             # plam
                 ( \x y ->
-                    plet (pd2FromElem x) $ \x' ->
-                        plet (pd2FromElem y) $ \y' ->
-                            pec2Double' # fieldMod # rSquared # curveA # whenNot # x' # y'
+                    pec2Double' # fieldMod # rSquared # curveA # whenInf # whenNot # pd2FromElem x # pd2FromElem y # y
                 )
 
 -- Helpers
@@ -248,6 +251,9 @@ pec2Double' ::
             -- Curve A constant
             PD2Element
             :-->
+            -- Point at infinity continuation
+            PDelayed r
+            :-->
             -- Regular point continuation
             (PD2Element :--> PD2Element :--> r)
             :-->
@@ -256,14 +262,21 @@ pec2Double' ::
             :-->
             -- Y
             PD2Intermediate
+            :-->
+            -- Y in reduced form
+            PD2Element
             :--> r
         )
-pec2Double' = phoistAcyclic $ plam $ \fieldMod rSquared curveA whenNot x y ->
-    let posTwo = punsafeCoerce @_ @PInteger 2
-        posThree = punsafeCoerce @_ @PInteger 3
-        topOfLambda = pscalePositive (pd2Square x) posThree #+ pd2FromElem curveA
-     in plet (pd2Divide topOfLambda (pscalePositive y posTwo)) $ \lambda ->
-            plet (pd2Square lambda #- pscalePositive x posTwo) $ \newX ->
-                let newY = (lambda #* (x #- newX)) #- y
-                    rSquared' = punsafeCoerce rSquared
-                 in whenNot # pd2ToElem rSquared' fieldMod newX # pd2ToElem rSquared' fieldMod newY
+pec2Double' = phoistAcyclic $ plam $ \fieldMod rSquared curveA whenInf whenNot x' y' y ->
+    pif
+        (y #== pd2Zero)
+        (pforce whenInf)
+        ( let posTwo = punsafeCoerce @_ @PInteger 2
+              posThree = punsafeCoerce @_ @PInteger 3
+              topOfLambda = pscalePositive (pd2Square x') posThree #+ pd2FromElem curveA
+           in plet (pd2Divide topOfLambda (pscalePositive y' posTwo)) $ \lambda ->
+                plet (pd2Square lambda #- pscalePositive x' posTwo) $ \newX ->
+                    let newY = (lambda #* (x' #- newX)) #- y'
+                        rSquared' = punsafeCoerce rSquared
+                     in whenNot # pd2ToElem rSquared' fieldMod newX # pd2ToElem rSquared' fieldMod newY
+        )

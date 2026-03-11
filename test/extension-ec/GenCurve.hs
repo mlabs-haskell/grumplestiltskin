@@ -3,13 +3,9 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
--- {-# OPTIONS_GHC -O2 #-}
--- {-# OPTIONS_GHC -fspecialise-aggressively #-}
-
 module GenCurve (
     GF11Elem2 (GF11Elem2),
     GenCurvePoints (GenCurvePoints),
-    countOptions,
 ) where
 
 import Control.Category ((.))
@@ -19,18 +15,10 @@ import Data.Coerce (coerce)
 import Data.Euclidean (
     Euclidean (degree, quot, quotRem, rem),
     Field,
-    GcdDomain (gcd),
+    GcdDomain,
     gcdExt,
  )
-import Data.Foldable (foldl')
 import Data.Kind (Type)
-import Data.Poly.Semiring (
-    Poly,
-    deriv,
-    leading,
-    timesRing,
-    toPoly,
- )
 import Data.Semiring (
     Ring (negate),
     Semiring (fromNatural, one, plus, times, zero),
@@ -55,8 +43,8 @@ import Test.QuickCheck (
     suchThatMaybe,
  )
 import Prelude (
-    Bool (False, True),
-    Eq ((==)),
+    Bool,
+    Eq ((/=), (==)),
     Int,
     Integral,
     Maybe (Just, Nothing),
@@ -243,29 +231,10 @@ cube :: forall (a :: Type). (Semiring a) => a -> a
 cube x = x * x * x
 
 isNonSingular :: GF11Elem2 -> GF11Elem2 -> Bool
-isNonSingular curveA curveB = go (toPoly @_ @VU.Vector [curveB, curveA, zero, one])
-  where
-    go :: Poly VU.Vector GF11Elem2 -> Bool
-    go f =
-        let f' = deriv f
-            indicator = gcd f f'
-            g = quot f indicator
-            h = quot f (timesRing g g)
-         in if indicator == one
-                then case leading h of
-                    Nothing -> False
-                    Just _ -> True
-                else go h
+isNonSingular curveA curveB = scale (cube curveA) 4 + scale (square curveB) 27 /= zero
 
 onCurve :: GF11Elem2 -> GF11Elem2 -> (GF11Elem2, GF11Elem2) -> Bool
 onCurve curveA curveB (x, y) = square y == (cube x + (curveA * x) + curveB)
 
-countOptions :: P.String
-countOptions = case foldl' go (0, 0) allEC of
-    (singular, nonSingular) -> "Singular: " <> P.show singular <> ", non-singular: " <> show nonSingular
-  where
-    go :: (Int, Int) -> (GF11Elem2, GF11Elem2) -> (Int, Int)
-    go (singular, nonSingular) (curveA, curveB) =
-        if isNonSingular curveA curveB
-            then (singular, nonSingular + 1)
-            else (singular + 1, nonSingular)
+scale :: GF11Elem2 -> Int -> GF11Elem2
+scale (GF11E2 (x, y)) n = GF11E2 . reduce $ (x * n, y * n)
