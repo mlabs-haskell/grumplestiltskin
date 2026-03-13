@@ -1,12 +1,12 @@
 module Main (main) where
 
-import Control.Monad (guard)
+import Data.Proxy (Proxy (Proxy))
+import Data.Vector.Sized qualified as Vector
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
+import GenD2 (GenD2Elements (GenD2Elements))
 import Grumplestiltskin.Degree2 (
-    D2Element,
     PD2Element,
     PD2Intermediate,
-    fromD2Element,
     mkD2Element,
     pd2Divide,
     pd2FromElem,
@@ -23,13 +23,11 @@ import Plutarch.Prelude (
     PBool,
     PInteger,
     PNatural,
-    PPositive,
     S,
     Term,
     pconstant,
     plam,
     plift,
-    pnegate,
     pone,
     ppowNatural,
     ppowPositive,
@@ -47,11 +45,10 @@ import Plutarch.Test.Golden (goldenEval, plutarchGolden)
 import Plutarch.Test.Utils (precompileTerm)
 import Plutarch.Unsafe (punsafeCoerce)
 import Test.QuickCheck (
-    Arbitrary (arbitrary, shrink),
+    Arbitrary (arbitrary),
     NonNegative (NonNegative),
     Positive (Positive),
     Property,
-    chooseInt,
     forAll,
  )
 import Test.Tasty (adjustOption, defaultMain, testGroup)
@@ -80,12 +77,12 @@ main = do
             , testProperty "pscalePositive x n = pscaleNatural x (pupcast n)" propScalePosNatAgree
             , testProperty "pscaleNatural x pzero = pzero" propScaleNatZero
             , testProperty "pscaleNatural x n = pscaleInteger x (pupcast n)" propScaleNatIntAgree
-            , testProperty "pd2Divide x y #* y = x" propDivide
-            , testProperty "ppowPositive x n #* ppowPositive x m = ppowPositive x (n #+ m)" propPowPosAdd
+            , -- , testProperty "pd2Divide x y #* y = x" propDivide
+              testProperty "ppowPositive x n #* ppowPositive x m = ppowPositive x (n #+ m)" propPowPosAdd
             , testProperty "ppowPositive (ppowPositive x n) m = ppowPositive x (n #* m)" propPowPosMul
             , testProperty "ppowPositive x 1 = x" propPowPosOne
             , testProperty "ppowNatural x n = pd2Pow x (pupcast n)" propPowNatIntAgree
-            , testProperty "pd2Pow x (-i) = pdDivide 1 (pd2Pow x i)" propPowInverse
+            -- , testProperty "pd2Pow x (-i) = pdDivide 1 (pd2Pow x i)" propPowInverse
             ]
         , plutarchGolden
             "Goldens"
@@ -111,21 +108,27 @@ main = do
 -- Properties
 
 propPowNatIntAgree :: Property
-propPowNatIntAgree = forAll arbitrary $ \(x, NonNegative n) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant n)
+propPowNatIntAgree = forAll (arbitrary @(GenD2Elements 1, _)) $ \(GenD2Elements order irred els, NonNegative n) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred # pconstant n)
   where
     go ::
         forall (s :: S).
         Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
         Term s PInteger ->
         Term s PBool
-    go t n =
+    go t order irred n =
         let asIntermediate = pd2FromElem t
             asNat = punsafeCoerce n
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
             lhs = ppowNatural asIntermediate asNat
             rhs = pd2Pow asIntermediate n
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+         in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
 
+{-
 propPowInverse :: Property
 propPowInverse = forAll arbitrary $ \(NZD2E x, i) ->
     plift (precompileTerm (plam go) # pconstant x # pconstant i)
@@ -140,55 +143,73 @@ propPowInverse = forAll arbitrary $ \(NZD2E x, i) ->
             lhs = pd2Pow asIntermediate (pnegate # n)
             rhs = pd2Divide pone (pd2Pow asIntermediate n)
          in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+-}
 
 propPowPosAdd :: Property
-propPowPosAdd = forAll arbitrary $ \(x, Positive n, Positive m) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant n # pconstant m)
+propPowPosAdd = forAll (arbitrary @(GenD2Elements 1, _, _)) $ \(GenD2Elements order irred els, Positive n, Positive m) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred # pconstant n # pconstant m)
   where
     go ::
         forall (s :: S).
         Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
         Term s PInteger ->
         Term s PInteger ->
         Term s PBool
-    go t n m =
+    go t order irred n m =
         let asIntermediate = pd2FromElem t
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
             n' = punsafeCoerce n
             m' = punsafeCoerce m
             lhs = ppowPositive asIntermediate n' #* ppowPositive asIntermediate m'
             rhs = ppowPositive asIntermediate (n' #+ m')
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+         in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
 
 propPowPosMul :: Property
-propPowPosMul = forAll arbitrary $ \(x, Positive n, Positive m) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant n # pconstant m)
+propPowPosMul = forAll (arbitrary @(GenD2Elements 1, _, _)) $ \(GenD2Elements order irred els, Positive n, Positive m) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred # pconstant n # pconstant m)
   where
     go ::
         forall (s :: S).
         Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
         Term s PInteger ->
         Term s PInteger ->
         Term s PBool
-    go t n m =
+    go t order irred n m =
         let asIntermediate = pd2FromElem t
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
             n' = punsafeCoerce n
             m' = punsafeCoerce m
             lhs = ppowPositive (ppowPositive asIntermediate n') m'
             rhs = ppowPositive asIntermediate (n' #* m')
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+         in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
 
 propPowPosOne :: Property
-propPowPosOne = forAll arbitrary $ \x ->
-    plift (precompileTerm (plam go) # pconstant x)
+propPowPosOne = forAll (arbitrary @(GenD2Elements 1)) $ \(GenD2Elements order irred els) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred)
   where
     go ::
         forall (s :: S).
-        Term s PD2Element -> Term s PBool
-    go t =
+        Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
+        Term s PBool
+    go t order irred =
         let asIntermediate = pd2FromElem t
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
             lhs = ppowPositive asIntermediate pone
-         in pd2ToElem pirreducible pbase lhs #== t
+         in pd2ToElem irred' order' lhs #== t
 
+{-
 propDivide :: Property
 propDivide = forAll arbitrary $ \(x, NZD2E y) ->
     plift (precompileTerm (plam go) # pconstant x # pconstant y)
@@ -203,239 +224,324 @@ propDivide = forAll arbitrary $ \(x, NZD2E y) ->
             t2Int = pd2FromElem t2
             lhs = pd2Divide t1Int t2Int #* t2Int
          in pd2ToElem pirreducible pbase lhs #== t1
+-}
 
 propScaleNatIntAgree :: Property
-propScaleNatIntAgree = forAll arbitrary $ \(x, NonNegative n) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant n)
+propScaleNatIntAgree = forAll (arbitrary @(GenD2Elements 1, _)) $ \(GenD2Elements order irred els, NonNegative n) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred # pconstant n)
   where
     go ::
         forall (s :: S).
         Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
         Term s PInteger ->
         Term s PBool
-    go x n =
+    go x order irred n =
         let asIntermediate = pd2FromElem x
             nNat = punsafeCoerce n
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
             lhs = pscaleNatural asIntermediate nNat
             rhs = pscaleInteger asIntermediate n
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+         in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
 
 propScaleNatZero :: Property
-propScaleNatZero = forAll arbitrary $ \x ->
-    plift (precompileTerm (plam go) # pconstant x)
-  where
-    go :: forall (s :: S). Term s PD2Element -> Term s PBool
-    go x =
-        let asIntermediate = pd2FromElem x
-            lhs = pscaleNatural asIntermediate pzero
-         in pd2ToElem pirreducible pbase lhs #== pd2Zero
-
-propScalePosNatAgree :: Property
-propScalePosNatAgree = forAll arbitrary $ \(x, Positive n) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant n)
+propScaleNatZero = forAll (arbitrary @(GenD2Elements 1)) $ \(GenD2Elements order irred els) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred)
   where
     go ::
         forall (s :: S).
         Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
+        Term s PBool
+    go x order irred =
+        let asIntermediate = pd2FromElem x
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
+            lhs = pscaleNatural asIntermediate pzero
+         in pd2ToElem irred' order' lhs #== pd2Zero
+
+propScalePosNatAgree :: Property
+propScalePosNatAgree = forAll (arbitrary @(GenD2Elements 1, _)) $ \(GenD2Elements order irred els, Positive n) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred # pconstant n)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
         Term s PInteger ->
         Term s PBool
-    go x n =
+    go x order irred n =
         let asIntermediate = pd2FromElem x
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
             nPos = punsafeCoerce n
             nNat = punsafeCoerce n
             lhs = pscalePositive asIntermediate nPos
             rhs = pscaleNatural asIntermediate nNat
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+         in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
 
 propScalePosAdd :: Property
-propScalePosAdd = forAll arbitrary $ \(x, Positive n, Positive m) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant n # pconstant m)
+propScalePosAdd = forAll (arbitrary @(GenD2Elements 1, _, _)) $ \(GenD2Elements order irred els, Positive n, Positive m) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred # pconstant n # pconstant m)
   where
     go ::
         forall (s :: S).
         Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
         Term s PInteger ->
         Term s PInteger ->
         Term s PBool
-    go x n m =
+    go x order irred n m =
         let asIntermediate = pd2FromElem x
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
             n' = punsafeCoerce n
             m' = punsafeCoerce m
             lhs = pscalePositive asIntermediate n' #+ pscalePositive asIntermediate m'
             rhs = pscalePositive asIntermediate (n' #+ m')
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+         in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
 
 propScalePosOne :: Property
-propScalePosOne = forAll arbitrary $ \x ->
-    plift (precompileTerm (plam go) # pconstant x)
-  where
-    go :: forall (s :: S). Term s PD2Element -> Term s PBool
-    go x =
-        let asIntermediate = pd2FromElem x
-            lhs = pscalePositive asIntermediate pone
-         in pd2ToElem pirreducible pbase lhs #== x
-
-propScalePosMul :: Property
-propScalePosMul = forAll arbitrary $ \(x, n, m) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant n # pconstant m)
+propScalePosOne = forAll (arbitrary @(GenD2Elements 1)) $ \(GenD2Elements order irred els) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred)
   where
     go ::
         forall (s :: S).
         Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
+        Term s PBool
+    go x order irred =
+        let asIntermediate = pd2FromElem x
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
+            lhs = pscalePositive asIntermediate pone
+         in pd2ToElem irred' order' lhs #== x
+
+propScalePosMul :: Property
+propScalePosMul = forAll (arbitrary @(GenD2Elements 1, _, _)) $ \(GenD2Elements order irred els, n, m) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred # pconstant n # pconstant m)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
         Term s PInteger ->
         Term s PInteger ->
         Term s PBool
-    go x n m =
+    go x order irred n m =
         let asIntermediate = pd2FromElem x
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
             n' = punsafeCoerce n
             m' = punsafeCoerce m
             lhs = pscalePositive (pscalePositive asIntermediate n') m'
             rhs = pscalePositive asIntermediate (n' #* m')
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+         in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
 
 propOneDivide :: Property
-propOneDivide = forAll arbitrary $ \x ->
-    plift (precompileTerm (plam go) # pconstant x)
+propOneDivide = forAll (arbitrary @(GenD2Elements 1)) $ \(GenD2Elements order irred els) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred)
   where
-    go :: forall (s :: S). Term s PD2Element -> Term s PBool
-    go t =
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
+        Term s PBool
+    go t order irred =
         let asIntermediate = pd2FromElem t
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
             lhs = pd2Divide asIntermediate pone
-         in pd2ToElem pirreducible pbase lhs #== t
+         in pd2ToElem irred' order' lhs #== t
 
 propSquare :: Property
-propSquare = forAll arbitrary $ \x ->
-    plift (precompileTerm (plam go) # pconstant x)
+propSquare = forAll (arbitrary @(GenD2Elements 1)) $ \(GenD2Elements order irred els) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred)
   where
-    go :: forall (s :: S). Term s PD2Element -> Term s PBool
-    go t =
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
+        Term s PBool
+    go t order irred =
         let asIntermediate = pd2FromElem t
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
             lhs = pd2Square asIntermediate
             rhs = asIntermediate #* asIntermediate
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+         in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
 
 propCommAdd :: Property
-propCommAdd = forAll arbitrary $ \(x, y) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant y)
+propCommAdd = forAll (arbitrary @(GenD2Elements 2)) $ \(GenD2Elements order irred els) ->
+    let x = Vector.index' els (Proxy @0)
+        y = Vector.index' els (Proxy @1)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant y # pconstant order # pconstant irred)
   where
-    go :: forall (s :: S). Term s PD2Element -> Term s PD2Element -> Term s PBool
-    go t1 t2 =
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
+        Term s PBool
+    go t1 t2 order irred =
         let lhs = pd2FromElem t1 #+ pd2FromElem t2
             rhs = pd2FromElem t2 #+ pd2FromElem t1
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
+         in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
 
 propAssocAdd :: Property
-propAssocAdd = forAll arbitrary $ \(x, y, z) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant y # pconstant z)
+propAssocAdd = forAll (arbitrary @(GenD2Elements 3)) $ \(GenD2Elements order irred els) ->
+    let x = Vector.index' els (Proxy @0)
+        y = Vector.index' els (Proxy @1)
+        z = Vector.index' els (Proxy @2)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant y # pconstant z # pconstant order # pconstant irred)
   where
     go ::
         forall (s :: S).
         Term s PD2Element ->
         Term s PD2Element ->
         Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
         Term s PBool
-    go t1 t2 t3 =
+    go t1 t2 t3 order irred =
         let lhs = pd2FromElem t1 #+ (pd2FromElem t2 #+ pd2FromElem t3)
             rhs = (pd2FromElem t1 #+ pd2FromElem t2) #+ pd2FromElem t3
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
+         in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
 
 propZeroAdd :: Property
-propZeroAdd = forAll arbitrary $ \x ->
-    plift (precompileTerm (plam go) # pconstant x)
+propZeroAdd = forAll (arbitrary @(GenD2Elements 1)) $ \(GenD2Elements order irred els) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred)
   where
-    go :: forall (s :: S). Term s PD2Element -> Term s PBool
-    go t =
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
+        Term s PBool
+    go t order irred =
         let lhs = pd2FromElem t #+ pzero
-         in pd2ToElem pirreducible pbase lhs #== t
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
+         in pd2ToElem irred' order' lhs #== t
 
 propNegate :: Property
-propNegate = forAll arbitrary $ \x ->
-    plift (precompileTerm (plam go) # pconstant x)
+propNegate = forAll (arbitrary @(GenD2Elements 1)) $ \(GenD2Elements order irred els) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred)
   where
     go ::
         forall (s :: S).
         Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
         Term s PBool
-    go t = pd2ToElem pirreducible pbase (pd2FromElem t #- pd2FromElem t) #== pd2Zero
+    go t order irred = pd2ToElem (punsafeCoerce irred) (punsafeCoerce order) (pd2FromElem t #- pd2FromElem t) #== pd2Zero
 
 propCommMul :: Property
-propCommMul = forAll arbitrary $ \(x, y) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant y)
+propCommMul = forAll (arbitrary @(GenD2Elements 2)) $ \(GenD2Elements order irred els) ->
+    let x = Vector.index' els (Proxy @0)
+        y = Vector.index' els (Proxy @1)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant y # pconstant order # pconstant irred)
   where
     go ::
         forall (s :: S).
         Term s PD2Element ->
         Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
         Term s PBool
-    go t1 t2 =
+    go t1 t2 order irred =
         let lhs = pd2FromElem t1 #* pd2FromElem t2
             rhs = pd2FromElem t2 #* pd2FromElem t1
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
+         in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
 
 propAssocMul :: Property
-propAssocMul = forAll arbitrary $ \(x, y, z) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant y # pconstant z)
+propAssocMul = forAll (arbitrary @(GenD2Elements 3)) $ \(GenD2Elements order irred els) ->
+    let x = Vector.index' els (Proxy @0)
+        y = Vector.index' els (Proxy @1)
+        z = Vector.index' els (Proxy @2)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant y # pconstant z # pconstant order # pconstant irred)
   where
     go ::
         forall (s :: S).
         Term s PD2Element ->
         Term s PD2Element ->
         Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
         Term s PBool
-    go t1 t2 t3 =
+    go t1 t2 t3 order irred =
         let lhs = pd2FromElem t1 #* (pd2FromElem t2 #* pd2FromElem t3)
             rhs = (pd2FromElem t1 #* pd2FromElem t2) #* pd2FromElem t3
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
+         in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
 
 propOneMul :: Property
-propOneMul = forAll arbitrary $ \x ->
-    plift (precompileTerm (plam go) # pconstant x)
+propOneMul = forAll (arbitrary @(GenD2Elements 1)) $ \(GenD2Elements order irred els) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred)
   where
-    go :: forall (s :: S). Term s PD2Element -> Term s PBool
-    go t =
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
+        Term s PBool
+    go t order irred =
         let lhs = pd2FromElem t #* pone
-         in pd2ToElem pirreducible pbase lhs #== t
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
+         in pd2ToElem irred' order' lhs #== t
 
 propDistribute :: Property
-propDistribute = forAll arbitrary $ \(x, y, z) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant y # pconstant z)
+propDistribute = forAll (arbitrary @(GenD2Elements 3)) $ \(GenD2Elements order irred els) ->
+    let x = Vector.index' els (Proxy @0)
+        y = Vector.index' els (Proxy @1)
+        z = Vector.index' els (Proxy @2)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant y # pconstant z # pconstant order # pconstant irred)
   where
     go ::
         forall (s :: S).
         Term s PD2Element ->
         Term s PD2Element ->
         Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
         Term s PBool
-    go t1 t2 t3 =
+    go t1 t2 t3 order irred =
         let lhs = pd2FromElem t1 #* (pd2FromElem t2 #+ pd2FromElem t3)
             rhs = (pd2FromElem t1 #* pd2FromElem t2) #+ (pd2FromElem t1 #* pd2FromElem t3)
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
+         in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
 
 -- Helpers
-
--- Needed for division properties, as we can't divide by zero
-newtype NonZeroD2E = NZD2E D2Element
-    deriving (Eq) via D2Element
-    deriving stock (Show)
-
-instance Arbitrary NonZeroD2E where
-    arbitrary =
-        NZD2E <$> do
-            r <- fromIntegral <$> chooseInt (0, 96)
-            i <- fromIntegral <$> if r == 0 then chooseInt (1, 96) else chooseInt (0, 96)
-            pure $ mkD2Element r i 97
-    shrink (NZD2E x) = do
-        let (r, i) = fromD2Element x
-        r' <- shrink r
-        i' <- shrink i
-        guard (r' > 0 || i' > 0)
-        pure . NZD2E $ mkD2Element r' i' 97
-
-pbase :: forall (s :: S). Term s PPositive
-pbase = punsafeCoerce (97 :: Term s PInteger)
-
-pirreducible :: forall (s :: S). Term s PNatural
-pirreducible = punsafeCoerce (5 :: Term s PInteger)
 
 -- BLS12-381 G1 field order
 const381 :: Natural

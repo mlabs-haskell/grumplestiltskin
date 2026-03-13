@@ -99,8 +99,12 @@ test-suite extension
   import:         test-lang
   type:           exitcode-stdio-1.0
   main-is:        Main.hs
+  other-modules:  GenD2
   hs-source-dirs: test/extension
-  build-depends:  plutus-core
+  build-depends:
+    , containers
+    , plutus-core
+    , vector-sized
 
 test-suite extension-ec
   import:         test-lang
