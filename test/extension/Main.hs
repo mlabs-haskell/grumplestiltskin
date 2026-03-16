@@ -3,7 +3,10 @@ module Main (main) where
 import Data.Proxy (Proxy (Proxy))
 import Data.Vector.Sized qualified as Vector
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
-import GenD2 (GenD2Elements (GenD2Elements))
+import GenD2 (
+    GenD2Elements (GenD2Elements),
+    GenD2NZElements (GenD2NZElements),
+ )
 import Grumplestiltskin.Degree2 (
     PD2Element,
     PD2Intermediate,
@@ -27,6 +30,7 @@ import Plutarch.Prelude (
     Term,
     pconstant,
     plam,
+    plet,
     plift,
     pone,
     ppowNatural,
@@ -36,6 +40,7 @@ import Plutarch.Prelude (
     pscalePositive,
     pzero,
     (#),
+    (#&&),
     (#*),
     (#+),
     (#-),
@@ -77,12 +82,14 @@ main = do
             , testProperty "pscalePositive x n = pscaleNatural x (pupcast n)" propScalePosNatAgree
             , testProperty "pscaleNatural x pzero = pzero" propScaleNatZero
             , testProperty "pscaleNatural x n = pscaleInteger x (pupcast n)" propScaleNatIntAgree
-            , -- , testProperty "pd2Divide x y #* y = x" propDivide
-              testProperty "ppowPositive x n #* ppowPositive x m = ppowPositive x (n #+ m)" propPowPosAdd
+            , testProperty "pd2Divide x x = pone" propDivideSelf
+            , testProperty "pd2Divide x pzero = pzero" propDivideZero
+            , testProperty "pd2Divide x pone = x" propDivideOne
+            , testProperty "pd2Divide (x #* y) y = (pd2Divide x y) #* y = x" propDivideInv
+            , testProperty "ppowPositive x n #* ppowPositive x m = ppowPositive x (n #+ m)" propPowPosAdd
             , testProperty "ppowPositive (ppowPositive x n) m = ppowPositive x (n #* m)" propPowPosMul
             , testProperty "ppowPositive x 1 = x" propPowPosOne
             , testProperty "ppowNatural x n = pd2Pow x (pupcast n)" propPowNatIntAgree
-            -- , testProperty "pd2Pow x (-i) = pdDivide 1 (pd2Pow x i)" propPowInverse
             ]
         , plutarchGolden
             "Goldens"
@@ -99,6 +106,7 @@ main = do
             , goldenEval "pd2Pow positive" (pd2Pow psampleInt 70)
             , goldenEval "pd2Pow negative" (pd2Pow psampleInt (-70))
             , goldenEval "pd2Square" (pd2Square psampleInt)
+            , goldenEval "pd2Divide" (pd2Divide psampleInt psampleInt2)
             ]
         ]
   where
@@ -106,6 +114,84 @@ main = do
     moreTests = max 100_000
 
 -- Properties
+
+propDivideSelf :: Property
+propDivideSelf = forAll (arbitrary @(GenD2NZElements 0 1)) $ \(GenD2NZElements order irred _ els) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
+        Term s PBool
+    go t order irred =
+        let asIntermediate = pd2FromElem t
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
+            lhs = pd2Divide asIntermediate asIntermediate
+         in pd2ToElem irred' order' lhs #== pd2One
+
+propDivideZero :: Property
+propDivideZero = forAll (arbitrary @(GenD2NZElements 0 1)) $ \(GenD2NZElements order irred _ els) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
+        Term s PBool
+    go t order irred =
+        let asIntermediate = pd2FromElem t
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
+            lhs = pd2Divide pzero asIntermediate
+         in pd2ToElem irred' order' lhs #== pd2Zero
+
+propDivideOne :: Property
+propDivideOne = forAll (arbitrary @(GenD2NZElements 0 1)) $ \(GenD2NZElements order irred _ els) ->
+    let x = Vector.index' els (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant order # pconstant irred)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
+        Term s PBool
+    go t order irred =
+        let asIntermediate = pd2FromElem t
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
+            lhs = pd2Divide asIntermediate pone
+         in pd2ToElem irred' order' lhs #== t
+
+propDivideInv :: Property
+propDivideInv = forAll (arbitrary @(GenD2NZElements 1 1)) $ \(GenD2NZElements order irred zs nzs) ->
+    let x = Vector.index' zs (Proxy @0)
+        y = Vector.index' nzs (Proxy @0)
+     in plift (precompileTerm (plam go) # pconstant x # pconstant y # pconstant order # pconstant irred)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PNatural ->
+        Term s PNatural ->
+        Term s PBool
+    go x y order irred =
+        let x' = pd2FromElem x
+            y' = pd2FromElem y
+            order' = punsafeCoerce order
+            irred' = punsafeCoerce irred
+            lhs = pd2Divide (x' #* y') y'
+            rhs = pd2Divide x' y' #* y'
+         in plet (pd2ToElem irred' order' lhs) $ \lhs' ->
+                plet (pd2ToElem irred' order' rhs) $ \rhs' ->
+                    (lhs' #== x) #&& (rhs' #== x)
 
 propPowNatIntAgree :: Property
 propPowNatIntAgree = forAll (arbitrary @(GenD2Elements 1, _)) $ \(GenD2Elements order irred els, NonNegative n) ->
@@ -127,23 +213,6 @@ propPowNatIntAgree = forAll (arbitrary @(GenD2Elements 1, _)) $ \(GenD2Elements 
             lhs = ppowNatural asIntermediate asNat
             rhs = pd2Pow asIntermediate n
          in pd2ToElem irred' order' lhs #== pd2ToElem irred' order' rhs
-
-{-
-propPowInverse :: Property
-propPowInverse = forAll arbitrary $ \(NZD2E x, i) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant i)
-  where
-    go ::
-        forall (s :: S).
-        Term s PD2Element ->
-        Term s PInteger ->
-        Term s PBool
-    go t n =
-        let asIntermediate = pd2FromElem t
-            lhs = pd2Pow asIntermediate (pnegate # n)
-            rhs = pd2Divide pone (pd2Pow asIntermediate n)
-         in pd2ToElem pirreducible pbase lhs #== pd2ToElem pirreducible pbase rhs
--}
 
 propPowPosAdd :: Property
 propPowPosAdd = forAll (arbitrary @(GenD2Elements 1, _, _)) $ \(GenD2Elements order irred els, Positive n, Positive m) ->
@@ -208,23 +277,6 @@ propPowPosOne = forAll (arbitrary @(GenD2Elements 1)) $ \(GenD2Elements order ir
             irred' = punsafeCoerce irred
             lhs = ppowPositive asIntermediate pone
          in pd2ToElem irred' order' lhs #== t
-
-{-
-propDivide :: Property
-propDivide = forAll arbitrary $ \(x, NZD2E y) ->
-    plift (precompileTerm (plam go) # pconstant x # pconstant y)
-  where
-    go ::
-        forall (s :: S).
-        Term s PD2Element ->
-        Term s PD2Element ->
-        Term s PBool
-    go t1 t2 =
-        let t1Int = pd2FromElem t1
-            t2Int = pd2FromElem t2
-            lhs = pd2Divide t1Int t2Int #* t2Int
-         in pd2ToElem pirreducible pbase lhs #== t1
--}
 
 propScaleNatIntAgree :: Property
 propScaleNatIntAgree = forAll (arbitrary @(GenD2Elements 1, _)) $ \(GenD2Elements order irred els, NonNegative n) ->
@@ -547,34 +599,22 @@ propDistribute = forAll (arbitrary @(GenD2Elements 3)) $ \(GenD2Elements order i
 const381 :: Natural
 const381 = 4002409555221667393417789825735904156556882819939007885332058136124031650490837864442687629129015664037894272559787
 
-{-
-p381 :: forall (s :: S) . Term s PPositive
-p381 = punsafeCoerce @_ @PInteger 4002409555221667393417789825735904156556882819939007885332058136124031650490837864442687629129015664037894272559787
--}
-
 -- 2^390
 huge1 :: Natural
 huge1 = 2521728396569246669585858566409191283525103313309788586748690777871726193375821479130513040312634601011624191379636224
 
-{-
-phuge1 :: forall (s :: S) . Term s PNatural
-phuge1 = punsafeCoerce @_ @PInteger 2521728396569246669585858566409191283525103313309788586748690777871726193375821479130513040312634601011624191379636224
--}
-
 -- 2^392
 huge2 :: Natural
 huge2 = 10086913586276986678343434265636765134100413253239154346994763111486904773503285916522052161250538404046496765518544896
-
-{-
-phuge2 :: forall (s :: S) . Term s PNatural
-phuge2 = punsafeCoerce @_ @PInteger 10086913586276986678343434265636765134100413253239154346994763111486904773503285916522052161250538404046496765518544896
--}
 
 psample :: forall (s :: S). Term s PD2Element
 psample = pconstant $ mkD2Element huge1 huge2 const381
 
 psampleInt :: forall (s :: S). Term s PD2Intermediate
 psampleInt = evalTerm' NoTracing (pd2FromElem psample)
+
+psampleInt2 :: forall (s :: S). Term s PD2Intermediate
+psampleInt2 = evalTerm' NoTracing (psampleInt #+ psampleInt)
 
 psampleIntSquared :: forall (s :: S). Term s PD2Intermediate
 psampleIntSquared = evalTerm' NoTracing (pd2Square psampleInt)

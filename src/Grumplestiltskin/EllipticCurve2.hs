@@ -180,23 +180,23 @@ instance PAdditiveSemigroup PEC2Intermediate where
                                                 plet (pd2FromElem y1) $ \y1' ->
                                                     plet (pd2FromElem y2) $ \y2' ->
                                                         let rSquared' = punsafeCoerce rSquared
-                                                         in plet (x1' #- x2') $ \xDiff' ->
-                                                                plet (y1' #- y2') $ \yDiff' ->
-                                                                    pif
-                                                                        (pd2ToElem rSquared' fieldMod xDiff' #== pd2Zero)
-                                                                        ( pif
-                                                                            (pd2ToElem rSquared' fieldMod yDiff' #== pd2Zero)
-                                                                            -- Double
-                                                                            (pec2Double' # fieldMod # rSquared # curveA # whenInf # whenNot # x1' # y1' # y1)
-                                                                            -- Infinity
-                                                                            (pforce whenInf)
-                                                                        )
-                                                                        -- Add
-                                                                        ( plet (pd2Divide yDiff' xDiff') $ \lambda ->
+                                                         in plet (y1' #- y2') $ \yDiff' ->
+                                                                pif
+                                                                    (x1 #== x2)
+                                                                    ( pif
+                                                                        (pd2ToElem rSquared' fieldMod yDiff' #== pd2Zero)
+                                                                        -- Double
+                                                                        (pec2Double' # fieldMod # rSquared # curveA # whenInf # whenNot # x1' # y1' # y1)
+                                                                        -- Infinity
+                                                                        (pforce whenInf)
+                                                                    )
+                                                                    -- Add
+                                                                    ( plet (x1' #- x2') $ \xDiff' ->
+                                                                        plet (pd2Divide yDiff' xDiff') $ \lambda ->
                                                                             plet (pd2Square lambda #- xDiff') $ \newX ->
                                                                                 plet ((lambda #* (x1' #- newX)) #- y1') $ \newY ->
                                                                                     whenNot # pd2ToElem rSquared' fieldMod newX # pd2ToElem rSquared' fieldMod newY
-                                                                        )
+                                                                    )
                                     )
                         )
 
