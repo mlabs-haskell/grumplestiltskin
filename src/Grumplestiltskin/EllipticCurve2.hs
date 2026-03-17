@@ -191,11 +191,10 @@ instance PAdditiveSemigroup PEC2Intermediate where
                                                                         (pforce whenInf)
                                                                     )
                                                                     -- Add
-                                                                    ( plet (x1' #- x2') $ \xDiff' ->
-                                                                        plet (pd2Divide yDiff' xDiff') $ \lambda ->
-                                                                            plet (pd2Square lambda #- xDiff') $ \newX ->
-                                                                                plet ((lambda #* (x1' #- newX)) #- y1') $ \newY ->
-                                                                                    whenNot # pd2ToElem rSquared' fieldMod newX # pd2ToElem rSquared' fieldMod newY
+                                                                    ( plet (pd2Divide yDiff' (x1' #- x2')) $ \lambda ->
+                                                                        plet ((pd2Square lambda #- x1') #- x2') $ \newX ->
+                                                                            plet ((lambda #* (x1' #- newX)) #- y1') $ \newY ->
+                                                                                whenNot # pd2ToElem rSquared' fieldMod newX # pd2ToElem rSquared' fieldMod newY
                                                                     )
                                     )
                         )
