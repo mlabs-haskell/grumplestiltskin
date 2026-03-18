@@ -6,18 +6,24 @@
 module GenCurve (
     GF11Elem2 (GF11Elem2),
     GenCurvePoints (GenCurvePoints),
+    GenOnCurve (GenOnCurve),
+    GenOffCurve (GenOffCurve),
 ) where
 
 import Control.Category ((.))
 import Control.Monad (guard)
 import Data.Bifunctor (Bifunctor (bimap))
-import Data.Coerce (coerce)
 import Data.Euclidean (
     Euclidean (degree, quot, quotRem, rem),
     Field,
     GcdDomain,
     gcdExt,
  )
+import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict qualified as HashMap
+import Data.HashSet (HashSet)
+import Data.HashSet qualified as HashSet
+import Data.Hashable (Hashable)
 import Data.Kind (Type)
 import Data.Semiring (
     Ring (negate),
@@ -26,12 +32,8 @@ import Data.Semiring (
     (+),
     (-),
  )
-import Data.Vector.Generic qualified as VG
-import Data.Vector.Generic.Mutable qualified as VGM
 import Data.Vector.Sized (Vector)
 import Data.Vector.Sized qualified as Vector
-import Data.Vector.Unboxed qualified as VU
-import Data.Vector.Unboxed.Mutable qualified as VUM
 import GHC.TypeNats (KnownNat)
 import Numeric.Natural (Natural)
 import Test.QuickCheck (
@@ -40,18 +42,17 @@ import Test.QuickCheck (
     chooseInt,
     elements,
     liftArbitrary2,
-    suchThatMaybe,
  )
 import Prelude (
     Bool,
     Eq ((/=), (==)),
     Int,
     Integral,
-    Maybe (Just, Nothing),
     Show (show),
     const,
     filter,
     mod,
+    not,
     pure,
     ($),
     (&&),
@@ -62,6 +63,40 @@ import Prelude (
     (||),
  )
 import Prelude qualified as P
+
+{- | Generates a point guaranteed to be on `y^2 = x^3 + (9 + 1u)x + (4 + 8u)`,
+with field order 11 and where `u^2 = 2`.
+-}
+newtype GenOnCurve = GOC (GF11Elem2, GF11Elem2)
+    deriving (Eq) via (GF11Elem2, GF11Elem2)
+
+instance Show GenOnCurve where
+    show (GOC (x, y)) = "x: " <> show x <> ", y: " <> show y
+
+instance Arbitrary GenOnCurve where
+    arbitrary = GOC <$> elements ecOnCurve
+
+pattern GenOnCurve :: GF11Elem2 -> GF11Elem2 -> GenOnCurve
+pattern GenOnCurve x y <- GOC (x, y)
+
+{-# COMPLETE GenOnCurve #-}
+
+{- | Generates a point guaranteed _not_ to be on `y^2 = x^3 + (9 + 1u)x + (4 +
+8u)`, with field order 11 and where `u^2 = 2`.
+-}
+newtype GenOffCurve = GOC' (GF11Elem2, GF11Elem2)
+    deriving (Eq) via (GF11Elem2, GF11Elem2)
+
+instance Show GenOffCurve where
+    show (GOC' (x, y)) = "x: " <> show x <> ", y: " <> show y
+
+instance Arbitrary GenOffCurve where
+    arbitrary = GOC' <$> elements ecOffCurve
+
+pattern GenOffCurve :: GF11Elem2 -> GF11Elem2 -> GenOffCurve
+pattern GenOffCurve x y <- GOC' (x, y)
+
+{-# COMPLETE GenOffCurve #-}
 
 {-
 The type parameter is how many points you want
@@ -91,16 +126,10 @@ instance Show (GenCurvePoints n) where
 -- check square-freeness as well.
 instance (KnownNat n) => Arbitrary (GenCurvePoints n) where
     arbitrary = do
-        constantA <- arbitrary
-        -- The odds that we 'miss' here are very small, and thus, retrying if we
-        -- don't get a square-free pair is much easier than trying to filter out all
-        -- such options.
-        constantB' <- suchThatMaybe arbitrary (isNonSingular constantA)
-        case constantB' of
-            Nothing -> P.error "Overloaded generator"
-            Just constantB -> do
-                let wholeCurve = filter (onCurve constantA constantB) allEC
-                GCP constantA constantB <$> Vector.replicateM (elements wholeCurve)
+        (constantA, allBs) <- elements (HashMap.toList nonSingularMap)
+        constantB <- elements (HashSet.toList allBs)
+        let wholeCurve = filter (onCurve constantA constantB) allEC
+        GCP constantA constantB <$> Vector.replicateM (elements wholeCurve)
     shrink (GCP constantA constantB points) = do
         let wholeCurve = filter (onCurve constantA constantB) allEC
         GCP constantA constantB <$> Vector.mapM (go wholeCurve) points
@@ -126,7 +155,7 @@ pattern GenCurvePoints constantA constantB points <- GCP constantA constantB poi
 
 -- Irreducible is 2
 newtype GF11Elem2 = GF11E2 (Int, Int)
-    deriving (Eq) via (Int, Int)
+    deriving (Eq, Hashable) via (Int, Int)
 
 instance Show GF11Elem2 where
     show (GF11E2 (r, i)) = "(" <> show r <> "+" <> show i <> "u)"
@@ -184,22 +213,6 @@ instance Arbitrary GF11Elem2 where
         guard (i' >= 0)
         pure . GF11E2 $ (r', i')
 
-instance VU.IsoUnbox GF11Elem2 (Int, Int) where
-    {-# INLINE toURepr #-}
-    toURepr = coerce
-    {-# INLINE fromURepr #-}
-    fromURepr = coerce
-
-newtype instance VU.MVector s GF11Elem2 = MV_Foo (VU.MVector s (Int, Int))
-
-newtype instance VU.Vector GF11Elem2 = V_Foo (VU.Vector (Int, Int))
-
-deriving via (VU.As GF11Elem2 (Int, Int)) instance VGM.MVector VUM.MVector GF11Elem2
-
-deriving via (VU.As GF11Elem2 (Int, Int)) instance VG.Vector VU.Vector GF11Elem2
-
-instance VU.Unbox GF11Elem2
-
 pattern GF11Elem2 :: Natural -> Natural -> GF11Elem2
 pattern GF11Elem2 r i <- (unpack -> (r, i))
 
@@ -207,11 +220,11 @@ pattern GF11Elem2 r i <- (unpack -> (r, i))
 
 -- Helpers
 
+allElems :: [GF11Elem2]
+allElems = [GF11E2 (r, i) | r <- [0, 1 .. 10], i <- [0, 1 .. 10]]
+
 allEC :: [(GF11Elem2, GF11Elem2)]
-allEC = [(GF11E2 (r1, i1), GF11E2 (r2, i2)) | r1 <- go, i1 <- go, r2 <- go, i2 <- go]
-  where
-    go :: [Int]
-    go = [0, 1 .. 10]
+allEC = [(x, y) | x <- allElems, y <- allElems]
 
 choose11 :: Gen Int
 choose11 = chooseInt (0, 10)
@@ -238,3 +251,17 @@ onCurve curveA curveB (x, y) = square y == (cube x + (curveA * x) + curveB)
 
 scale :: GF11Elem2 -> Int -> GF11Elem2
 scale (GF11E2 (x, y)) n = GF11E2 . reduce $ (x * n, y * n)
+
+-- Easier to precompute all pairs of non-singular EC curve constants than hoping
+-- we luck into them
+nonSingularMap :: HashMap GF11Elem2 (HashSet GF11Elem2)
+nonSingularMap = HashMap.fromList . P.fmap go $ allElems
+  where
+    go :: GF11Elem2 -> (GF11Elem2, HashSet GF11Elem2)
+    go k = (k, HashSet.fromList . filter (isNonSingular k) $ allElems)
+
+ecOnCurve :: [(GF11Elem2, GF11Elem2)]
+ecOnCurve = filter (onCurve (GF11E2 (9, 1)) (GF11E2 (4, 8))) allEC
+
+ecOffCurve :: [(GF11Elem2, GF11Elem2)]
+ecOffCurve = filter (not . onCurve (GF11E2 (9, 1)) (GF11E2 (4, 8))) allEC

@@ -33,11 +33,13 @@ import Grumplestiltskin.Degree2 (
     pd2ToElem,
     pd2Zero,
  )
+import Plutarch.Internal.Case (punsafeCase)
 import Plutarch.Internal.Lift (PLifted (PLifted))
 import Plutarch.Internal.PlutusType (PlutusType (PInner, pcon', pmatch'))
 import Plutarch.Prelude (
     DeriveAsSOPStruct (DeriveAsSOPStruct),
-    PAdditiveGroup (pscaleInteger, (#-)),
+    PAdditiveGroup (pnegate, (#-)),
+    PAdditiveMonoid (pzero),
     PAdditiveSemigroup (pscalePositive, (#+)),
     PBool (PTrue),
     PDelayed,
@@ -50,15 +52,19 @@ import Plutarch.Prelude (
     Term,
     pcon,
     pdelay,
+    pfix,
     pforce,
     phoistAcyclic,
     pif,
     plam,
     plet,
     pmatch,
-    pone,
-    pscaleInteger,
+    popaque,
+    pquot,
+    prem,
+    pupcast,
     (#),
+    (#$),
     (#*),
     (#+),
     (#-),
@@ -122,18 +128,18 @@ pec2OnCurve ::
     forall (s :: S).
     Term s PPositive ->
     Term s PPositive ->
-    Term s PInteger ->
-    Term s PInteger ->
+    Term s PD2Element ->
+    Term s PD2Element ->
     Term s PEC2Point ->
     Term s PBool
 pec2OnCurve fieldOrder rSquared constantA constantB p = pmatch p $ \case
     PEC2Infinity -> pcon PTrue
     PEC2Point x y -> plet (pd2FromElem x) $ \x' ->
         plet (pd2FromElem y) $ \y' ->
-            plet (x' #* x') $ \xSquared ->
-                let lhs = y' #* y'
-                    rhs = ((x' #* xSquared) #+ pscaleInteger xSquared constantA) #+ pscaleInteger pone constantB
-                 in pd2ToElem (punsafeCoerce rSquared) fieldOrder lhs #== pd2ToElem (punsafeCoerce rSquared) fieldOrder rhs
+            let lhs = y' #* y'
+                rhs = (x' #* (x' #* x')) #+ ((pd2FromElem constantA #* x') #+ pd2FromElem constantB)
+                rSquared' = punsafeCoerce rSquared
+             in pd2ToElem rSquared' fieldOrder lhs #== pd2ToElem rSquared' fieldOrder rhs
 
 -- | @since wip
 newtype PEC2Intermediate (s :: S)
@@ -198,6 +204,49 @@ instance PAdditiveSemigroup PEC2Intermediate where
                                                                     )
                                     )
                         )
+    pscalePositive t p = go # t # pupcast p
+      where
+        go :: forall (s :: S). Term s (PEC2Intermediate :--> PInteger :--> PEC2Intermediate)
+        go = phoistAcyclic $ pfix $ \self -> plam $ \t' p' -> pmatch t' $ \(PEC2Intermediate k1) ->
+            pcon $ PEC2Intermediate $ plam $ \fieldMod rSquared curveA whenInf whenNot ->
+                k1
+                    # fieldMod
+                    # rSquared
+                    # curveA
+                    # whenInf
+                    # plam
+                        ( \x y ->
+                            pif
+                                (p' #== 1)
+                                (whenNot # x # y)
+                                ( plet (pec2Double (self # t' #$ pquot # p' # 2)) $ \doubled ->
+                                    punsafeCase
+                                        (prem # p' # 2)
+                                        [ popaque $ pmatch doubled $ \(PEC2Intermediate k2) ->
+                                            k2 # fieldMod # rSquared # curveA # whenInf # whenNot
+                                        , popaque $ pmatch (doubled #+ t') $ \(PEC2Intermediate k2) ->
+                                            k2 # fieldMod # rSquared # curveA # whenInf # whenNot
+                                        ]
+                                )
+                        )
+
+-- | @since wip
+instance PAdditiveMonoid PEC2Intermediate where
+    pzero = pcon $ PEC2Intermediate $ plam $ \_ _ _ whenInf _ -> pforce whenInf
+
+-- | @since wip
+instance PAdditiveGroup PEC2Intermediate where
+    pnegate = phoistAcyclic $ plam $ \t -> pmatch t $ \(PEC2Intermediate k1) ->
+        pcon $ PEC2Intermediate $ plam $ \fieldMod rSquared curveA whenInf whenNot ->
+            k1
+                # fieldMod
+                # rSquared
+                # curveA
+                # whenInf
+                # plam
+                    ( \x y ->
+                        whenNot # x # pd2ToElem (punsafeCoerce rSquared) (punsafeCoerce fieldMod) (pnegate # pd2FromElem y)
+                    )
 
 -- | @since wip
 pec2ToIntermediate ::

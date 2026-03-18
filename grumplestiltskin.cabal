@@ -113,7 +113,8 @@ test-suite extension-ec
   other-modules:  GenCurve
   hs-source-dirs: test/extension-ec
   build-depends:
+    , hashable
     , plutus-core
     , semirings
-    , vector
+    , unordered-containers
     , vector-sized
