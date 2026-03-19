@@ -7,7 +7,7 @@ import Data.Proxy (Proxy (Proxy))
 import Data.Vector.Unboxed.Sized qualified as Vector
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import GenCurve (GenCurvePoints (GenCurvePoints))
-import Grumplestiltskin.EllipticCurve (
+import Grumplestiltskin.Degree1.EllipticCurve (
     PECIntermediatePoint (PECIntermediateInfinity, PECIntermediatePoint),
     PECPoint (PECInfinity),
     PECPointData,

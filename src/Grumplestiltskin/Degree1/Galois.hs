@@ -5,7 +5,7 @@
 
 @since 1.0.0
 -}
-module Grumplestiltskin.Galois (
+module Grumplestiltskin.Degree1.Galois (
     -- * Types
 
     -- ** Haskell

@@ -2,7 +2,7 @@ module Main (main) where
 
 import Control.Monad (guard)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
-import Grumplestiltskin.Galois (
+import Grumplestiltskin.Degree1.Galois (
     PGFElement,
     PGFElementData,
     PGFIntermediate,
