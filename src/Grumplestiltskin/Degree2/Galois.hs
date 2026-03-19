@@ -17,7 +17,7 @@ complex numbers.
 
 @since wip
 -}
-module Grumplestiltskin.Degree2 (
+module Grumplestiltskin.Degree2.Galois (
     -- * Types
 
     -- ** Haskell

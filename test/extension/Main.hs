@@ -7,7 +7,7 @@ import GenD2 (
     GenD2Elements (GenD2Elements),
     GenD2NZElements (GenD2NZElements),
  )
-import Grumplestiltskin.Degree2 (
+import Grumplestiltskin.Degree2.Galois (
     PD2Element,
     PD2Intermediate,
     mkD2Element,

@@ -66,8 +66,8 @@ library
   exposed-modules:
     Grumplestiltskin.Degree1.EllipticCurve
     Grumplestiltskin.Degree1.Galois
-    Grumplestiltskin.Degree2
-    Grumplestiltskin.EllipticCurve2
+    Grumplestiltskin.Degree2.EllipticCurve
+    Grumplestiltskin.Degree2.Galois
 
   build-depends:
     , generics-sop

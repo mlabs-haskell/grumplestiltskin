@@ -10,13 +10,7 @@ import GenCurve (
     GenOffCurve (GenOffCurve),
     GenOnCurve (GenOnCurve),
  )
-import Grumplestiltskin.Degree2 (
-    D2Element,
-    PD2Element,
-    mkD2Element,
-    pd2Zero,
- )
-import Grumplestiltskin.EllipticCurve2 (
+import Grumplestiltskin.Degree2.EllipticCurve (
     PEC2Intermediate,
     PEC2Point,
     pec2Double,
@@ -24,6 +18,12 @@ import Grumplestiltskin.EllipticCurve2 (
     pec2FromIntermediate,
     pec2OnCurve,
     pec2ToIntermediate,
+ )
+import Grumplestiltskin.Degree2.Galois (
+    D2Element,
+    PD2Element,
+    mkD2Element,
+    pd2Zero,
  )
 import Numeric.Natural (Natural)
 import Plutarch.Evaluate (evalTerm')

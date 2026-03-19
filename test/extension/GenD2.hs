@@ -15,7 +15,10 @@ import Data.Maybe (fromJust)
 import Data.Vector.Sized (Vector)
 import Data.Vector.Sized qualified as Vector
 import GHC.TypeNats (KnownNat)
-import Grumplestiltskin.Degree2 (D2Element (D2Element), mkD2Element)
+import Grumplestiltskin.Degree2.Galois (
+    D2Element (D2Element),
+    mkD2Element,
+ )
 import Numeric.Natural (Natural)
 import Test.QuickCheck (
     Arbitrary (arbitrary, shrink),
