@@ -10,3 +10,4 @@ ppowNatural {"exBudgetCPU":724200,"exBudgetMemory":3203,"scriptSizeBytes":371}
 pd2Pow positive {"exBudgetCPU":1125245,"exBudgetMemory":4806,"scriptSizeBytes":807}
 pd2Pow negative {"exBudgetCPU":630353,"exBudgetMemory":2505,"scriptSizeBytes":813}
 pd2Square {"exBudgetCPU":16100,"exBudgetMemory":200,"scriptSizeBytes":153}
+pd2Divide {"exBudgetCPU":16100,"exBudgetMemory":200,"scriptSizeBytes":442}

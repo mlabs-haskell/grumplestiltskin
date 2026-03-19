@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 {- | Second-degree extensions of finite fields. This is an analogy to complex
 numbers being an extension of the reals, but generalized to any finite field.
@@ -20,7 +21,7 @@ module Grumplestiltskin.Degree2 (
     -- * Types
 
     -- ** Haskell
-    D2Element,
+    D2Element (D2Element),
 
     -- ** SOP-encoded
     PD2Element,
@@ -36,6 +37,8 @@ module Grumplestiltskin.Degree2 (
 
     -- ** Operations
     fromD2Element,
+    pd2FromPoint,
+    pd2ToPoint,
     pd2Square,
     pd2Pow,
     pd2Divide,
@@ -104,11 +107,6 @@ import Plutarch.Prelude (
     (:-->),
  )
 import Plutarch.Unsafe (punsafeCoerce, punsafeDowncast)
-import Test.QuickCheck (
-    Arbitrary (arbitrary, shrink),
-    Gen,
-    chooseInt,
- )
 import Test.QuickCheck.Instances.Natural ()
 
 {- | Haskell-level representation of an element of a second-degree extension of
@@ -118,34 +116,21 @@ reduced form.
 
 @since wip
 -}
-data D2Element = D2Element Natural Natural
+data D2Element = D2E Natural Natural
     deriving stock
         ( -- | @since wip
           Eq
-        , -- | @since wip
-          Show
         )
 
-{- | This generates elements of the second-degree extension of @GF(97)@. While a
-somewhat arbitrary choice, the field order is both prime and within the
-default QuickCheck size of 100, hence the choice.
+-- | @since wip
+instance Show D2Element where
+    show (D2Element x y) = "(" <> show x <> " + " <> show y <> "u)"
 
-= Important note
+-- | @since wip
+pattern D2Element :: Natural -> Natural -> D2Element
+pattern D2Element x y <- D2E x y
 
-Ensure you choose a suitable irreducible! @5@ is an example of a suitable
-choice: in @GF(97)@, @x^2 = 5@ has no solutions.
-
-@since wip
--}
-instance Arbitrary D2Element where
-    arbitrary = D2Element <$> go <*> go
-      where
-        go :: Gen Natural
-        go = fromIntegral <$> chooseInt (0, 96)
-    shrink (D2Element r i) = do
-        r' <- shrink r
-        i' <- shrink i
-        pure . D2Element r' $ i'
+{-# COMPLETE D2Element #-}
 
 {- | Given a \'real part\', an \'imaginary part\' and a field modulus, construct
 the corresponding 'D2Element' in the field extension corresponding to that
@@ -158,14 +143,14 @@ If given a zero modulus, this will error.
 @since wip
 -}
 mkD2Element :: Natural -> Natural -> Natural -> D2Element
-mkD2Element r i b = D2Element (r `mod` b) (i `mod` b)
+mkD2Element r i b = D2E (r `mod` b) (i `mod` b)
 
 {- | As 'mkD2Element', but with the \'imaginary part\' always zero.
 
 @since wip
 -}
 mkSubD2Element :: Natural -> Natural -> D2Element
-mkSubD2Element r b = D2Element (r `mod` b) 0
+mkSubD2Element r b = D2E (r `mod` b) 0
 
 {- | Convert a 'D2Element' into its \'real\' and \'imaginary\' components, as
 'Natural's.
@@ -212,9 +197,29 @@ instance PLiftable PD2Element where
         if
             | realPart < 0 -> Left . OtherLiftError $ "Negative real part is not valid for PD2Element"
             | imaginaryPart < 0 -> Left . OtherLiftError $ "Negative imaginary part is not valid for PD2Element"
-            | otherwise -> pure $ D2Element (fromIntegral realPart) (fromIntegral imaginaryPart)
+            | otherwise -> pure $ D2E (fromIntegral realPart) (fromIntegral imaginaryPart)
     reprToPlut = pliftedFromClosed
     plutToRepr = Right . pliftedToClosed
+
+-- | @since wip
+pd2FromPoint ::
+    forall (r :: S -> Type) (s :: S).
+    Term s PD2Element ->
+    (Term s PNatural -> Term s PNatural -> Term s r) ->
+    Term s r
+pd2FromPoint t f = pmatch t $ \(PD2Element x y) -> f x y
+
+-- | @since wip
+pd2ToPoint ::
+    forall (s :: S).
+    Term s PNatural ->
+    Term s PNatural ->
+    Term s PNatural ->
+    Term s PD2Element
+pd2ToPoint r i fieldMod =
+    let r' = punsafeCoerce (pmod # pupcast r # pupcast fieldMod)
+        i' = punsafeCoerce (pmod # pupcast i # pupcast fieldMod)
+     in pcon . PD2Element r' $ i'
 
 {- | The zero element (the additive identity), which exists in every
 second-degree extension of any finite field. More precisely, this has the
@@ -223,7 +228,7 @@ zero element as both its \'real\' and its \'imaginary\' part.
 @since wip
 -}
 pd2Zero :: forall (s :: S). Term s PD2Element
-pd2Zero = pconstant . D2Element 0 $ 0
+pd2Zero = pconstant . D2E 0 $ 0
 
 {- | The one element (the multiplicative identity), which exists in every
 second-degree extension of any finite field. More precisely, this has the one
@@ -232,7 +237,7 @@ element as its \'real\' part, and the zero element as its \'imaginary\' part.
 @since wip
 -}
 pd2One :: forall (s :: S). Term s PD2Element
-pd2One = pconstant . D2Element 1 $ 0
+pd2One = pconstant . D2E 1 $ 0
 
 {- | Convert an element into an intermediate form, suitable for computation.
 
@@ -440,13 +445,14 @@ pd2Divide w z = pmatch w $ \(PD2Intermediate k1) ->
                             # order
                             # plam
                                 ( \x y ->
-                                    let recipExpr = (x #* x) #- (pupcast rSquared #* (y #* y))
+                                    let rSquared' = pupcast rSquared
+                                        recipExpr = (x #* x) #- (rSquared' #* (y #* y))
                                         ux = u #* x
                                         yv = y #* v
                                         xv = x #* v
                                         uy = u #* y
                                      in plet (pexpModInteger # recipExpr # (-1) # pupcast order) $ \recipr ->
-                                            k # ((ux #- (5 #* yv)) #* recipr) # ((xv #- uy) #* recipr)
+                                            k # ((ux #- (rSquared' #* yv)) #* recipr) # ((xv #- uy) #* recipr)
                                 )
                     )
 

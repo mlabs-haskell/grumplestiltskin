@@ -1,0 +1,7 @@
+pec2OnCurve {"exBudgetCPU":11382843,"exBudgetMemory":40068,"scriptSizeBytes":2005}
+#+ {"exBudgetCPU":304041139,"exBudgetMemory":320238,"scriptSizeBytes":13158}
+pscalePositive {"exBudgetCPU":400100,"exBudgetMemory":2600,"scriptSizeBytes":1355}
+pnegate {"exBudgetCPU":112100,"exBudgetMemory":800,"scriptSizeBytes":316}
+pscaleNatural {"exBudgetCPU":548433,"exBudgetMemory":3201,"scriptSizeBytes":1368}
+pscaleInteger positive {"exBudgetCPU":736270,"exBudgetMemory":4102,"scriptSizeBytes":1689}
+pscaleInteger negative {"exBudgetCPU":1258686,"exBudgetMemory":6106,"scriptSizeBytes":1688}
