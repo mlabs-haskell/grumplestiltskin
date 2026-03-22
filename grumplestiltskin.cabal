@@ -68,6 +68,7 @@ library
     Grumplestiltskin.Degree1.Galois
     Grumplestiltskin.Degree2.EllipticCurve
     Grumplestiltskin.Degree2.Galois
+    Grumplestiltskin.Degree2.GaloisDirect
 
   build-depends:
     , generics-sop
