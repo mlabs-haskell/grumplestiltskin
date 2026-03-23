@@ -7,17 +7,19 @@ import GenD2 (
     GenD2Elements (GenD2Elements),
     GenD2NZElements (GenD2NZElements),
  )
-import Grumplestiltskin.Degree2.Galois (
+import Grumplestiltskin.Degree2.Element (
     PD2Element,
-    PD2Intermediate,
     mkD2Element,
+    pd2One,
+    pd2Zero,
+ )
+import Grumplestiltskin.Degree2.Galois (
+    PD2Intermediate,
     pd2Divide,
     pd2FromElem,
-    pd2One,
     pd2Pow,
     pd2Square,
     pd2ToElem,
-    pd2Zero,
  )
 import Numeric.Natural (Natural)
 import Plutarch.Evaluate (evalTerm')

@@ -15,7 +15,7 @@ import Data.Maybe (fromJust)
 import Data.Vector.Sized (Vector)
 import Data.Vector.Sized qualified as Vector
 import GHC.TypeNats (KnownNat)
-import Grumplestiltskin.Degree2.Galois (
+import Grumplestiltskin.Degree2.Element (
     D2Element (D2Element),
     mkD2Element,
  )
@@ -26,6 +26,7 @@ import Test.QuickCheck (
     chooseInt,
     elements,
  )
+import Test.QuickCheck.Instances ()
 
 data GenD2Elements (n :: Natural) = GenD2Elements' Natural Natural (Vector n D2Element)
     deriving stock (Eq)
