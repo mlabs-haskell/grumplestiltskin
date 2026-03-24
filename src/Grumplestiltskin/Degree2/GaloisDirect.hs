@@ -31,8 +31,8 @@ import Plutarch.Builtin.Integer (pexpModInteger)
 import Plutarch.Internal.Case (punsafeCase)
 import Plutarch.Prelude (
     DeriveAsSOPStruct (DeriveAsSOPStruct),
-    PAdditiveGroup (pnegate, (#-)),
-    PAdditiveMonoid (pzero),
+    PAdditiveGroup (pnegate, pscaleInteger, (#-)),
+    PAdditiveMonoid (pscaleNatural, pzero),
     PAdditiveSemigroup (pscalePositive, (#+)),
     PInteger,
     PMultiplicativeSemigroup ((#*)),
@@ -92,6 +92,8 @@ instance PAdditiveSemigroup PD2Intermediate where
 -- | @since wip
 instance PAdditiveMonoid PD2Intermediate where
     pzero = pcon $ PD2Intermediate 0 0
+    pscaleNatural t n = pmatch t $ \(PD2Intermediate x y) ->
+        pcon $ PD2Intermediate (pscaleNatural x n) (pscaleNatural y n)
 
 -- | @since wip
 instance PAdditiveGroup PD2Intermediate where
@@ -100,6 +102,8 @@ instance PAdditiveGroup PD2Intermediate where
     t1 #- t2 = pmatch t1 $ \(PD2Intermediate x1 y1) ->
         pmatch t2 $ \(PD2Intermediate x2 y2) ->
             pcon $ PD2Intermediate (x1 #- x2) (y1 #- y2)
+    pscaleInteger t i = pmatch t $ \(PD2Intermediate x y) ->
+        pcon $ PD2Intermediate (pscaleInteger x i) (pscaleInteger y i)
 
 -- | @since wip
 pd2Square ::

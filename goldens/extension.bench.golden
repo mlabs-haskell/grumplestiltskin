@@ -5,11 +5,11 @@ plus, direct {"exBudgetCPU":1492518,"exBudgetMemory":5344,"scriptSizeBytes":494}
 pscalePositive, indirect {"exBudgetCPU":1316188,"exBudgetMemory":5026,"scriptSizeBytes":216}
 pscalePositive, direct {"exBudgetCPU":1316188,"exBudgetMemory":5026,"scriptSizeBytes":219}
 pscaleNatural, indirect {"exBudgetCPU":1316188,"exBudgetMemory":5026,"scriptSizeBytes":216}
-pscaleNatural, direct {"exBudgetCPU":1464521,"exBudgetMemory":5627,"scriptSizeBytes":233}
+pscaleNatural, direct {"exBudgetCPU":1316188,"exBudgetMemory":5026,"scriptSizeBytes":219}
 pscaleInteger positive, indirect {"exBudgetCPU":1316188,"exBudgetMemory":5026,"scriptSizeBytes":216}
-pscaleInteger positive, direct {"exBudgetCPU":1652358,"exBudgetMemory":6528,"scriptSizeBytes":403}
+pscaleInteger positive, direct {"exBudgetCPU":1316188,"exBudgetMemory":5026,"scriptSizeBytes":219}
 pscaleInteger negative, indirect {"exBudgetCPU":1790604,"exBudgetMemory":6730,"scriptSizeBytes":228}
-pscaleInteger negative, direct {"exBudgetCPU":2963438,"exBudgetMemory":11550,"scriptSizeBytes":405}
+pscaleInteger negative, direct {"exBudgetCPU":1790604,"exBudgetMemory":6730,"scriptSizeBytes":231}
 ppowPositive, indirect {"exBudgetCPU":269730064,"exBudgetMemory":61846,"scriptSizeBytes":489}
 ppowPositive, direct {"exBudgetCPU":270471442,"exBudgetMemory":65250,"scriptSizeBytes":699}
 ppowNatural, indirect {"exBudgetCPU":269910397,"exBudgetMemory":62647,"scriptSizeBytes":507}
