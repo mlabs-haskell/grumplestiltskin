@@ -22,3 +22,5 @@ pd2Square, indirect {"exBudgetCPU":2098508,"exBudgetMemory":6398,"scriptSizeByte
 pd2Square, direct {"exBudgetCPU":2098508,"exBudgetMemory":6398,"scriptSizeBytes":287}
 pd2Divide, indirect {"exBudgetCPU":10212125,"exBudgetMemory":14024,"scriptSizeBytes":627}
 pd2Divide, direct {"exBudgetCPU":9541509,"exBudgetMemory":11110,"scriptSizeBytes":499}
+sum of squares, indirect {"exBudgetCPU":4539466,"exBudgetMemory":15030,"scriptSizeBytes":632}
+sum of squares, direct {"exBudgetCPU":3964850,"exBudgetMemory":12716,"scriptSizeBytes":513}

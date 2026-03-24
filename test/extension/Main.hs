@@ -149,6 +149,8 @@ main = do
             , goldenEval "pd2Square, direct" (directResolve $ Direct.pd2Square (punsafeCoerce psampleIrred) psampleInt')
             , goldenEval "pd2Divide, indirect" (indirectResolve $ pd2Divide psampleInt psampleInt2)
             , goldenEval "pd2Divide, direct" (directResolve $ Direct.pd2Divide pconst381 (punsafeCoerce psampleIrred) psampleInt' psampleInt2')
+            , goldenEval "sum of squares, indirect" (indirectResolve $ pd2Square psampleInt #+ pd2Square psampleInt2)
+            , goldenEval "sum of squares, direct" (directResolve $ Direct.pd2Square (punsafeCoerce psampleIrred) psampleInt' #+ Direct.pd2Square (punsafeCoerce psampleIrred) psampleInt2')
             ]
         ]
   where
