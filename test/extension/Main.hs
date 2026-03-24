@@ -128,16 +128,27 @@ main = do
             [ goldenEval "pd2Zero" pd2Zero
             , goldenEval "pd2One" pd2One
             , goldenEval "plus, indirect" (indirectResolve $ psampleInt #+ psampleIntSquared)
-            , goldenEval "pscalePositive" (indirectResolve $ pscalePositive psampleInt (punsafeCoerce @_ @PInteger 700))
-            , goldenEval "pscaleNatural" (indirectResolve $ pscalePositive psampleInt (punsafeCoerce @_ @PInteger 700))
-            , goldenEval "pscaleInteger positive" (indirectResolve $ pscaleInteger psampleInt 700)
-            , goldenEval "pscaleInteger negative" (indirectResolve $ pscaleInteger psampleInt (-700))
-            , goldenEval "ppowPositive" (indirectResolve $ ppowPositive psampleInt (punsafeCoerce @_ @PInteger 70))
-            , goldenEval "ppowNatural" (indirectResolve $ ppowNatural psampleInt (punsafeCoerce @_ @PInteger 70))
-            , goldenEval "pd2Pow positive" (indirectResolve $ pd2Pow psampleInt 70)
-            , goldenEval "pd2Pow negative" (indirectResolve $ pd2Pow psampleInt (-70))
-            , goldenEval "pd2Square" (indirectResolve $ pd2Square psampleInt)
-            , goldenEval "pd2Divide" (indirectResolve $ pd2Divide psampleInt psampleInt2)
+            , goldenEval "plus, direct" (directResolve $ psampleInt' #+ psampleIntSquared')
+            , goldenEval "pscalePositive, indirect" (indirectResolve $ pscalePositive psampleInt (punsafeCoerce @_ @PInteger 700))
+            , goldenEval "pscalePositive, direct" (directResolve $ pscalePositive psampleInt' (punsafeCoerce @_ @PInteger 700))
+            , goldenEval "pscaleNatural, indirect" (indirectResolve $ pscaleNatural psampleInt (punsafeCoerce @_ @PInteger 700))
+            , goldenEval "pscaleNatural, direct" (directResolve $ pscaleNatural psampleInt' (punsafeCoerce @_ @PInteger 700))
+            , goldenEval "pscaleInteger positive, indirect" (indirectResolve $ pscaleInteger psampleInt 700)
+            , goldenEval "pscaleInteger positive, direct" (directResolve $ pscaleInteger psampleInt' 700)
+            , goldenEval "pscaleInteger negative, indirect" (indirectResolve $ pscaleInteger psampleInt (-700))
+            , goldenEval "pscaleInteger negative, direct" (directResolve $ pscaleInteger psampleInt' (-700))
+            , goldenEval "ppowPositive, indirect" (indirectResolve $ ppowPositive psampleInt (punsafeCoerce @_ @PInteger 70))
+            , goldenEval "ppowPositive, direct" (directResolve $ Direct.pd2Pow pconst381 (punsafeCoerce psampleIrred) psampleInt' 70)
+            , goldenEval "ppowNatural, indirect" (indirectResolve $ ppowNatural psampleInt (punsafeCoerce @_ @PInteger 70))
+            , goldenEval "ppowNatural, direct" (directResolve $ Direct.pd2Pow pconst381 (punsafeCoerce psampleIrred) psampleInt' 70)
+            , goldenEval "pd2Pow positive, indirect" (indirectResolve $ pd2Pow psampleInt 70)
+            , goldenEval "pd2Pow positive, direct" (directResolve $ Direct.pd2Pow pconst381 (punsafeCoerce psampleIrred) psampleInt' 70)
+            , goldenEval "pd2Pow negative, indirect" (indirectResolve $ pd2Pow psampleInt (-70))
+            , goldenEval "pd2Pow negative, direct" (directResolve $ Direct.pd2Pow pconst381 (punsafeCoerce psampleIrred) psampleInt' (-70))
+            , goldenEval "pd2Square, indirect" (indirectResolve $ pd2Square psampleInt)
+            , goldenEval "pd2Square, direct" (directResolve $ Direct.pd2Square (punsafeCoerce psampleIrred) psampleInt')
+            , goldenEval "pd2Divide, indirect" (indirectResolve $ pd2Divide psampleInt psampleInt2)
+            , goldenEval "pd2Divide, direct" (directResolve $ Direct.pd2Divide pconst381 (punsafeCoerce psampleIrred) psampleInt' psampleInt2')
             ]
         ]
   where
@@ -145,6 +156,8 @@ main = do
     moreTests = max 100_000
     indirectResolve :: forall (s :: S). Term s PD2Intermediate -> Term s PD2Element
     indirectResolve = pd2ToElem psampleIrred pconst381
+    directResolve :: forall (s :: S). Term s Direct.PD2Intermediate -> Term s PD2Element
+    directResolve = Direct.pd2ToElem pconst381
 
 -- Properties
 
@@ -1076,8 +1089,17 @@ psample = pconstant $ mkD2Element huge1 huge2 const381
 psampleInt :: forall (s :: S). Term s PD2Intermediate
 psampleInt = evalTerm' NoTracing (pd2FromElem psample)
 
+psampleInt' :: forall (s :: S). Term s Direct.PD2Intermediate
+psampleInt' = evalTerm' NoTracing (Direct.pd2FromElem psample)
+
 psampleInt2 :: forall (s :: S). Term s PD2Intermediate
 psampleInt2 = evalTerm' NoTracing (psampleInt #+ psampleInt)
 
+psampleInt2' :: forall (s :: S). Term s Direct.PD2Intermediate
+psampleInt2' = evalTerm' NoTracing (psampleInt' #+ psampleInt')
+
 psampleIntSquared :: forall (s :: S). Term s PD2Intermediate
 psampleIntSquared = evalTerm' NoTracing (pd2Square psampleInt)
+
+psampleIntSquared' :: forall (s :: S). Term s Direct.PD2Intermediate
+psampleIntSquared' = evalTerm' NoTracing (Direct.pd2Square (punsafeCoerce psampleIrred) psampleInt')
