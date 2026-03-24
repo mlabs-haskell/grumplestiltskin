@@ -42,6 +42,7 @@ import Plutarch.Prelude (
     S,
     Term,
     pcon,
+    pcond,
     pfix,
     phoistAcyclic,
     pif,
@@ -56,6 +57,7 @@ import Plutarch.Prelude (
     (#),
     (#$),
     (#<=),
+    (#==),
     (:-->),
  )
 import Plutarch.Unsafe (punsafeCoerce)
@@ -122,9 +124,10 @@ pd2Pow ::
     Term s PInteger ->
     Term s PD2Intermediate
 pd2Pow fieldMod rSquared x e =
-    pif
-        (e #<= (-1))
-        (pd2Recip # fieldMod # rSquared #$ pd2Pow' # rSquared # x #$ pnegate # e)
+    pcond
+        [ (e #== 0, pd2OneI)
+        , (e #<= (-1), pd2Recip # fieldMod # rSquared #$ pd2Pow' # rSquared # x #$ pnegate # e)
+        ]
         (pd2Pow' # rSquared # x # e)
 
 -- | @since wip
