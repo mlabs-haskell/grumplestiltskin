@@ -23,12 +23,14 @@ import Grumplestiltskin.Degree2.Galois (
  )
 import Grumplestiltskin.Degree2.GaloisDirect qualified as Direct
 import Numeric.Natural (Natural)
+import Plutarch.Builtin.Integer (pexpModInteger)
 import Plutarch.Evaluate (evalTerm')
 import Plutarch.Internal.Term (Config (NoTracing))
 import Plutarch.Prelude (
     PBool,
     PInteger,
     PNatural,
+    PPositive,
     S,
     Term,
     pconstant,
@@ -125,22 +127,24 @@ main = do
             "extension"
             [ goldenEval "pd2Zero" pd2Zero
             , goldenEval "pd2One" pd2One
-            , goldenEval "plus" (psampleInt #+ psampleIntSquared)
-            , goldenEval "pscalePositive" (pscalePositive psampleInt (punsafeCoerce @_ @PInteger 700))
-            , goldenEval "pscaleNatural" (pscalePositive psampleInt (punsafeCoerce @_ @PInteger 700))
-            , goldenEval "pscaleInteger positive" (pscaleInteger psampleInt 700)
-            , goldenEval "pscaleInteger negative" (pscaleInteger psampleInt (-700))
-            , goldenEval "ppowPositive" (ppowPositive psampleInt (punsafeCoerce @_ @PInteger 70))
-            , goldenEval "ppowNatural" (ppowNatural psampleInt (punsafeCoerce @_ @PInteger 70))
-            , goldenEval "pd2Pow positive" (pd2Pow psampleInt 70)
-            , goldenEval "pd2Pow negative" (pd2Pow psampleInt (-70))
-            , goldenEval "pd2Square" (pd2Square psampleInt)
-            , goldenEval "pd2Divide" (pd2Divide psampleInt psampleInt2)
+            , goldenEval "plus, indirect" (indirectResolve $ psampleInt #+ psampleIntSquared)
+            , goldenEval "pscalePositive" (indirectResolve $ pscalePositive psampleInt (punsafeCoerce @_ @PInteger 700))
+            , goldenEval "pscaleNatural" (indirectResolve $ pscalePositive psampleInt (punsafeCoerce @_ @PInteger 700))
+            , goldenEval "pscaleInteger positive" (indirectResolve $ pscaleInteger psampleInt 700)
+            , goldenEval "pscaleInteger negative" (indirectResolve $ pscaleInteger psampleInt (-700))
+            , goldenEval "ppowPositive" (indirectResolve $ ppowPositive psampleInt (punsafeCoerce @_ @PInteger 70))
+            , goldenEval "ppowNatural" (indirectResolve $ ppowNatural psampleInt (punsafeCoerce @_ @PInteger 70))
+            , goldenEval "pd2Pow positive" (indirectResolve $ pd2Pow psampleInt 70)
+            , goldenEval "pd2Pow negative" (indirectResolve $ pd2Pow psampleInt (-70))
+            , goldenEval "pd2Square" (indirectResolve $ pd2Square psampleInt)
+            , goldenEval "pd2Divide" (indirectResolve $ pd2Divide psampleInt psampleInt2)
             ]
         ]
   where
     moreTests :: QuickCheckTests -> QuickCheckTests
     moreTests = max 100_000
+    indirectResolve :: forall (s :: S). Term s PD2Intermediate -> Term s PD2Element
+    indirectResolve = pd2ToElem psampleIrred pconst381
 
 -- Properties
 
@@ -1051,6 +1055,9 @@ propDistribute' = forAll (arbitrary @(GenD2Elements 3)) $ \(GenD2Elements order 
 const381 :: Natural
 const381 = 4002409555221667393417789825735904156556882819939007885332058136124031650490837864442687629129015664037894272559787
 
+pconst381 :: forall (s :: S). Term s PPositive
+pconst381 = punsafeCoerce $ pconstant @PNatural const381
+
 -- 2^390
 huge1 :: Natural
 huge1 = 2521728396569246669585858566409191283525103313309788586748690777871726193375821479130513040312634601011624191379636224
@@ -1058,6 +1065,10 @@ huge1 = 252172839656924666958585856640919128352510331330978858674869077787172619
 -- 2^392
 huge2 :: Natural
 huge2 = 10086913586276986678343434265636765134100413253239154346994763111486904773503285916522052161250538404046496765518544896
+
+-- -1 reduced modulo
+psampleIrred :: forall (s :: S). Term s PNatural
+psampleIrred = evalTerm' NoTracing (punsafeCoerce $ pexpModInteger # (-1) # (-1) # punsafeCoerce (pconstant @PNatural const381))
 
 psample :: forall (s :: S). Term s PD2Element
 psample = pconstant $ mkD2Element huge1 huge2 const381
