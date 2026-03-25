@@ -10,13 +10,13 @@ import GenCurve (
     GenOffCurve (GenOffCurve),
     GenOnCurve (GenOnCurve),
  )
-import Grumplestiltskin.Degree2 (
+import Grumplestiltskin.Degree2.Element (
     D2Element,
     PD2Element,
     mkD2Element,
     pd2Zero,
  )
-import Grumplestiltskin.EllipticCurve2 (
+import Grumplestiltskin.Degree2.EllipticCurve (
     PEC2Intermediate,
     PEC2Point,
     pec2Double,

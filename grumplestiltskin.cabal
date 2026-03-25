@@ -64,10 +64,12 @@ common test-lang
 library
   import:          lang
   exposed-modules:
-    Grumplestiltskin.Degree2
-    Grumplestiltskin.EllipticCurve
-    Grumplestiltskin.EllipticCurve2
-    Grumplestiltskin.Galois
+    Grumplestiltskin.Degree1.EllipticCurve
+    Grumplestiltskin.Degree1.Galois
+    Grumplestiltskin.Degree2.Element
+    Grumplestiltskin.Degree2.EllipticCurve
+    Grumplestiltskin.Degree2.Galois
+    Grumplestiltskin.Degree2.GaloisDirect
 
   build-depends:
     , generics-sop

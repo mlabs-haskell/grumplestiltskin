@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 
-module Grumplestiltskin.EllipticCurve2 (
+module Grumplestiltskin.Degree2.EllipticCurve (
     -- * Types
 
     -- ** Haskell
@@ -23,15 +23,17 @@ module Grumplestiltskin.EllipticCurve2 (
 import Data.Kind (Type)
 import GHC.Generics (Generic)
 import Generics.SOP qualified as SOP
-import Grumplestiltskin.Degree2 (
+import Grumplestiltskin.Degree2.Element (
     D2Element,
     PD2Element,
+    pd2Zero,
+ )
+import Grumplestiltskin.Degree2.Galois (
     PD2Intermediate,
     pd2Divide,
     pd2FromElem,
     pd2Square,
     pd2ToElem,
-    pd2Zero,
  )
 import Plutarch.Internal.Case (punsafeCase)
 import Plutarch.Internal.Lift (PLifted (PLifted))
