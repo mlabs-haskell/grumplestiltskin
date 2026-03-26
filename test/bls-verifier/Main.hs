@@ -10,7 +10,7 @@ import Cardano.Crypto.EllipticCurve.BLS12_381 (
     blsNeg,
  )
 import Control.Monad (guard)
-import Data.Poly (Poly, eval, toPoly, unPoly)
+import Data.Poly (Poly, toPoly, unPoly)
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
@@ -44,7 +44,7 @@ import Test.QuickCheck (
  )
 import Test.QuickCheck.Instances ()
 import Test.Tasty (adjustOption, defaultMain, testGroup)
-import Test.Tasty.QuickCheck (QuickCheckTests, testProperty)
+import Test.Tasty.QuickCheck (QuickCheckTests, suchThat, testProperty)
 
 main :: IO ()
 main = do
@@ -60,12 +60,12 @@ main = do
 -- Properties
 
 propValid :: Property
-propValid = forAllShrink arbitrary shrink $ \(Tau tau, r, Polynomial p) ->
-    let asVector = unPoly p
+propValid = forAllShrink arbitrary shrink $ \(Tau tau, R r, p@(MyPoly p')) ->
+    let asVector = p'
         len = Vector.length asVector
         trustedSetupTaus = Vector.generate len (\e -> blsMult g1 (tau ^ e))
         pCommitment@(G1.Element pCommitment') = G1.Element . Vector.foldl1' blsAddOrDouble . Vector.zipWith blsMult trustedSetupTaus $ asVector
-        pAtR = eval p r
+        pAtR = myEval r p
         qCommitment = G1.Element . blsAddOrDouble pCommitment' . blsNeg . blsMult g1 $ pAtR
         tauScaleG2 = G2.Element $ blsMult g2 tau
      in counterexample ("Commitment to P: " <> show pCommitment)
@@ -115,15 +115,44 @@ instance Arbitrary Tau where
             coin <- arbitrary
             pure $
                 if coin
-                    then i + 1
-                    else negate (i + 1)
+                    then i + 100
+                    else negate (i + 100)
     shrink (Tau i) =
         Tau <$> do
             i' <- shrink i
-            guard (i' /= 0)
-            guard (i' /= (-1))
-            guard (i' /= 1)
+            guard (abs i' > 100)
             pure i'
+
+newtype R = R Integer
+    deriving (Eq) via Integer
+    deriving stock (Show)
+
+instance Arbitrary R where
+    arbitrary = R <$> (arbitrary `suchThat` (\x -> x < (-1) || x > 1))
+    shrink (R r) =
+        R <$> do
+            r' <- shrink r
+            guard (r' < (-1) || r' > 1)
+            pure r'
+
+-- index corresponds to the power, elements of the vector are coefficients
+newtype MyPoly = MyPoly (Vector Integer)
+    deriving (Show) via (Vector Integer)
+
+instance Arbitrary MyPoly where
+    arbitrary = do
+        Positive len <- arbitrary
+        MyPoly <$> Vector.replicateM len (arbitrary @Integer `suchThat` (\x -> x < (-1) || x > 1))
+    shrink (MyPoly v) = do
+        shrunk <- liftShrink (fmap getNonZero . shrink . NonZero) v
+        guard (Vector.length shrunk > 0)
+        pure (MyPoly shrunk)
+
+myEval :: Integer -> MyPoly -> Integer
+myEval x (MyPoly v) = Vector.ifoldl' go 0 v
+  where
+    go :: Integer -> Int -> Integer -> Integer
+    go acc i c = acc + c * (x ^ (fromIntegral i :: Integer))
 
 newtype Polynomial = Polynomial (Poly Vector Integer)
     deriving (Eq) via (Poly Vector Integer)
@@ -138,10 +167,10 @@ instance Arbitrary Polynomial where
     arbitrary =
         Polynomial . toPoly <$> do
             Positive len <- arbitrary
-            Vector.replicateM len (getNonZero <$> arbitrary)
+            Vector.replicateM (len + 5) (arbitrary @Integer `suchThat` (\x -> x < (-1) || x > 1))
     shrink (Polynomial p) =
         Polynomial . toPoly <$> do
             let asVector = unPoly p
             shrunk <- liftShrink (fmap getNonZero . shrink . NonZero) asVector
-            guard (Vector.length shrunk > 0)
+            guard (Vector.length shrunk > 4)
             pure shrunk
