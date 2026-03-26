@@ -69,6 +69,7 @@ library
     Grumplestiltskin.Degree2.AffinePoint
     Grumplestiltskin.Degree2.Element
     Grumplestiltskin.Degree2.EllipticCurve
+    Grumplestiltskin.Degree2.EllipticCurveDirect
     Grumplestiltskin.Degree2.Galois
     Grumplestiltskin.Degree2.GaloisDirect
 
