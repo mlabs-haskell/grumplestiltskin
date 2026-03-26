@@ -10,6 +10,11 @@ import GenCurve (
     GenOffCurve (GenOffCurve),
     GenOnCurve (GenOnCurve),
  )
+import Grumplestiltskin.Degree2.AffinePoint (
+    PEC2Point,
+    pec2FromElems,
+    pec2OnCurve,
+ )
 import Grumplestiltskin.Degree2.Element (
     D2Element,
     PD2Element,
@@ -18,11 +23,8 @@ import Grumplestiltskin.Degree2.Element (
  )
 import Grumplestiltskin.Degree2.EllipticCurve (
     PEC2Intermediate,
-    PEC2Point,
     pec2Double,
-    pec2FromElems,
     pec2FromIntermediate,
-    pec2OnCurve,
     pec2ToIntermediate,
  )
 import Numeric.Natural (Natural)
