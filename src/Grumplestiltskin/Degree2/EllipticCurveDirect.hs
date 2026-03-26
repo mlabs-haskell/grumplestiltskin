@@ -5,7 +5,7 @@ module Grumplestiltskin.Degree2.EllipticCurveDirect (
     -- * Types
 
     -- ** Plutarch
-    PEC2Intermediate,
+    PEC2Intermediate (..),
 
     -- * Functions
     pec2Double,
