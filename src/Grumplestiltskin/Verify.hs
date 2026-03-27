@@ -34,5 +34,5 @@ verify ::
         )
 verify = phoistAcyclic $ plam $ \g1 tau_X_G2 g2 pTau_X_G1 r pR qTau_X_G1 ->
     let lhs = pbls12_381_millerLoop # qTau_X_G1 # (tau_X_G2 #- (pbls12_381_G2_scalarMul # r # g2))
-        rhs = pbls12_381_millerLoop # (pTau_X_G1 #- (pbls12_381_G1_scalarMul # pR # g1)) # tau_X_G2
+        rhs = pbls12_381_millerLoop # (pTau_X_G1 #- (pbls12_381_G1_scalarMul # pR # g1)) # g2 --  tau_X_G2
      in pbls12_381_finalVerify # lhs # rhs
