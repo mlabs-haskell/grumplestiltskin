@@ -88,10 +88,10 @@ main = do
         , adjustOption moreTests $
             testGroup
                 "Case 2: properties (direct)"
-                [ testProperty "#+ associates" propAssocAdd'
-                , testProperty "x #+ pzero = pzero #+ x = x" propZeroAdd'
-                , testProperty "pec2Double x = x #+ x" propDoubleAdd'
-                , testProperty "x #- x = pzero" propInvAdd'
+                [ testProperty "pec2Add associates" propAssocAdd'
+                , testProperty "pec2Add x PEC2InfinityI = pec2Add PEC2InfinityI x = x" propZeroAdd'
+                , testProperty "pec2Double x = pec2Add x x" propDoubleAdd'
+                , testProperty "pec2Add x (pec2Negate x) = PEC2InfinityI" propInvAdd'
                 ]
         , adjustOption lotsMoreTests $
             testGroup
@@ -103,12 +103,13 @@ main = do
             "Case 4: goldens"
             "extension-ec"
             [ goldenEval "pec2OnCurve" (pec2OnCurve pblsOrder validRSquared validCurveA validCurveB blsC1')
-            , goldenEval "#+" (evalCurve # (blsC1 #+ blsC2))
-            , goldenEval "pscalePositive" (pscalePositive blsC1 (punsafeCoerce @_ @PInteger 70))
-            , goldenEval "pnegate" (pnegate # blsC1)
-            , goldenEval "pscaleNatural" (pscaleNatural blsC1 (punsafeCoerce @_ @PInteger 70))
-            , goldenEval "pscaleInteger positive" (pscaleInteger blsC1 70)
-            , goldenEval "pscaleInteger negative" (pscaleInteger blsC1 (-70))
+            , goldenEval "#+ (indirect)" (evalCurve # (blsC1 #+ blsC2))
+            , goldenEval "pec2Add (direct)" (evalCurve' # Direct.pec2Add pblsOrder validRSquared validCurveA blsC1Direct blsC2Direct)
+            , goldenEval "pscalePositive (indirect)" (pscalePositive blsC1 (punsafeCoerce @_ @PInteger 70))
+            , goldenEval "pnegate (indirect)" (pnegate # blsC1)
+            , goldenEval "pscaleNatural (indirect)" (pscaleNatural blsC1 (punsafeCoerce @_ @PInteger 70))
+            , goldenEval "pscaleInteger positive (indirect)" (pscaleInteger blsC1 70)
+            , goldenEval "pscaleInteger negative (indirect)" (pscaleInteger blsC1 (-70))
             ]
         ]
   where
@@ -120,6 +121,8 @@ main = do
     lotsMoreTests = max 10_000
     evalCurve :: forall (s :: S). Term s (PEC2Intermediate :--> PEC2Point)
     evalCurve = phoistAcyclic $ plam $ pec2FromIntermediate pblsOrder validRSquared validCurveA
+    evalCurve' :: forall (s :: S). Term s (Direct.PEC2Intermediate :--> PEC2Point)
+    evalCurve' = phoistAcyclic $ plam $ Direct.pec2FromIntermediate pblsOrder
 
 -- Properties
 
@@ -489,6 +492,12 @@ blsC1' = evalTerm' NoTracing (pec2FromElems (pconstant . mkBLS validX1 $ validY1
 
 blsC1 :: forall (s :: S). Term s PEC2Intermediate
 blsC1 = evalTerm' NoTracing (pec2ToIntermediate blsC1')
+
+blsC1Direct :: forall (s :: S). Term s Direct.PEC2Intermediate
+blsC1Direct = evalTerm' NoTracing (Direct.pec2ToIntermediate blsC1')
+
+blsC2Direct :: forall (s :: S). Term s Direct.PEC2Intermediate
+blsC2Direct = evalTerm' NoTracing (Direct.pec2Scale pblsOrder validRSquared validCurveA blsC1Direct 3)
 
 blsC2 :: forall (s :: S). Term s PEC2Intermediate
 blsC2 = evalTerm' NoTracing (pscaleInteger blsC1 3)
