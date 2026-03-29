@@ -1,6 +1,6 @@
 {-# LANGUAGE ImpredicativeTypes #-}
 
-module Grumplestiltskin.Degree2.EllipticCurve (
+module Grumplestiltskin.Degree2.EllipticCurveII (
     -- * Types
 
     -- ** Plutarch

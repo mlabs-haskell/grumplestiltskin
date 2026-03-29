@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Grumplestiltskin.Degree2.EllipticCurveDirect (
+module Grumplestiltskin.Degree2.EllipticCurveDD (
     -- * Types
 
     -- ** Plutarch

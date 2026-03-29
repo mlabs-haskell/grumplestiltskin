@@ -21,8 +21,8 @@ import Grumplestiltskin.Degree2.Element (
     mkD2Element,
     pd2Zero,
  )
-import Grumplestiltskin.Degree2.EllipticCurve qualified as II
-import Grumplestiltskin.Degree2.EllipticCurveDirect qualified as DD
+import Grumplestiltskin.Degree2.EllipticCurveDD qualified as DD
+import Grumplestiltskin.Degree2.EllipticCurveII qualified as II
 import Numeric.Natural (Natural)
 import Plutarch.Evaluate (evalTerm')
 import Plutarch.Internal.Term (Config (NoTracing))
