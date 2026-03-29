@@ -155,7 +155,7 @@ pec2OnCurve program
                   (case !2 [(\!0 !0 !0 !0 !0 -> !1 !5 !4)]))
                (case !2 [(\!0 !0 !0 !0 !0 -> !1 !5 !4)])) ])
      16019282247729705411943748644318972617695120099330552659862384536985976748491357143400656079302193429974954385540174732940659106207100323726025938325193045129788127168347624263893040187112659960846674086295148469572963088890738917)
-#+ (indirect) program
+#+ (II) program
   1.1.0
   ((\!0 ->
       (\!0 ->
@@ -7565,7 +7565,7 @@ pec2OnCurve program
                                  (delay (equalsInteger !3 !1)))) ]) ]))
         (\!0 !0 -> delay (case !2 [!2, (force !1)])))
      (\!0 -> subtractInteger 0 !1))
-pscalePositive (indirect) program
+pscalePositive (II) program
   1.1.0
   ((\!0 ->
       (\!0 ->
@@ -8201,7 +8201,7 @@ pscalePositive (indirect) program
                                  (delay (equalsInteger !3 !1)))) ]) ]))
         (\!0 !0 -> delay (case !2 [!2, (force !1)])))
      (\!0 -> subtractInteger 0 !1))
-pnegate (indirect) program
+pnegate (II) program
   1.1.0
   ((\!0 ->
       (\!0 !0 !0 !0 !0 !0 ->
@@ -8233,7 +8233,7 @@ pnegate (indirect) program
                 [ 1985150602287291935568054521177171638300868978215655730859378665066344726373823718423869104263333984641494340347905
                 , 927553665492332455747201965776037880757740193453592970025027978793976877002675564980949289727957565575433344219582 ])))
      (\!0 -> subtractInteger 0 !1))
-pscaleNatural (indirect) program
+pscaleNatural (II) program
   1.1.0
   ((\!0 ->
       (\!0 ->
@@ -8881,7 +8881,7 @@ pscaleNatural (indirect) program
                                  (delay (equalsInteger !3 !1)))) ]) ]))
         (\!0 !0 -> delay (case !2 [!2, (force !1)])))
      (\!0 -> subtractInteger 0 !1))
-pscaleInteger positive (indirect) program
+pscaleInteger positive (II) program
   1.1.0
   ((\!0 ->
       (\!0 ->
@@ -9568,7 +9568,7 @@ pscaleInteger positive (indirect) program
                                  (delay (equalsInteger !3 !1)))) ]) ]))
         (\!0 !0 -> delay (case !2 [!2, (force !1)])))
      (\!0 -> subtractInteger 0 !1))
-pscaleInteger negative (indirect) program
+pscaleInteger negative (II) program
   1.1.0
   ((\!0 ->
       (\!0 ->
