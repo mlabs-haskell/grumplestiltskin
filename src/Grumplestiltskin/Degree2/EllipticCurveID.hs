@@ -112,7 +112,7 @@ instance PAdditiveSemigroup PEC2Intermediate where
                                                                     (pforce whenInf)
                                                                 )
                                                                 ( plet (pd2Divide fieldMod rSquared yDiff' (x1' #- x2')) $ \lambda ->
-                                                                    plet (pd2Square rSquared lambda #- x1') $ \newX ->
+                                                                    plet ((pd2Square rSquared lambda #- x1') #- x2') $ \newX ->
                                                                         let newY = pd2Times rSquared lambda (x1' #- newX) #- y1'
                                                                          in whenNot # pd2ToElem fieldMod newX # pd2ToElem fieldMod newY
                                                                 )
@@ -159,7 +159,7 @@ instance PAdditiveGroup PEC2Intermediate where
                 # whenInf
                 # plam
                     ( \x y ->
-                        whenNot # x # pd2ToElem (punsafeCoerce rSquared) (pnegate # pd2FromElem y)
+                        whenNot # x # pd2ToElem fieldMod (pnegate # pd2FromElem y)
                     )
 
 -- | @since wip
