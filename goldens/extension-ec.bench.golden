@@ -1,13 +1,20 @@
 pec2OnCurve {"exBudgetCPU":11382843,"exBudgetMemory":40068,"scriptSizeBytes":2005}
-#+ (II) {"exBudgetCPU":304041139,"exBudgetMemory":320238,"scriptSizeBytes":13158}
-#+ (ID) {"exBudgetCPU":146671823,"exBudgetMemory":150297,"scriptSizeBytes":12214}
-pscalePositive (II) {"exBudgetCPU":400100,"exBudgetMemory":2600,"scriptSizeBytes":1355}
-pscalePositive (ID) {"exBudgetCPU":400100,"exBudgetMemory":2600,"scriptSizeBytes":1231}
+#+ (II) {"exBudgetCPU":100291545,"exBudgetMemory":104792,"scriptSizeBytes":2547}
+#+ (ID) {"exBudgetCPU":48214005,"exBudgetMemory":48183,"scriptSizeBytes":2440}
+pec2Add (DD) {"exBudgetCPU":49275939,"exBudgetMemory":51431,"scriptSizeBytes":3332}
 pnegate (II) {"exBudgetCPU":2202412,"exBudgetMemory":11538,"scriptSizeBytes":556}
 pnegate (ID) {"exBudgetCPU":1978412,"exBudgetMemory":10138,"scriptSizeBytes":544}
-pscaleNatural (II) {"exBudgetCPU":548433,"exBudgetMemory":3201,"scriptSizeBytes":1368}
-pscaleNatural (ID) {"exBudgetCPU":548433,"exBudgetMemory":3201,"scriptSizeBytes":1245}
-pscaleInteger positive (II) {"exBudgetCPU":736270,"exBudgetMemory":4102,"scriptSizeBytes":1689}
-pscaleInteger positive (ID) {"exBudgetCPU":736270,"exBudgetMemory":4102,"scriptSizeBytes":1553}
-pscaleInteger negative (II) {"exBudgetCPU":1258686,"exBudgetMemory":6106,"scriptSizeBytes":1688}
-pscaleInteger negative (ID) {"exBudgetCPU":736270,"exBudgetMemory":4102,"scriptSizeBytes":1553}
+pec2Negate (DD) {"exBudgetCPU":2198108,"exBudgetMemory":10462,"scriptSizeBytes":666}
+pscalePositive (II) {"exBudgetCPU":610629940,"exBudgetMemory":577789,"scriptSizeBytes":1594}
+pscalePositive (ID) {"exBudgetCPU":321189456,"exBudgetMemory":290273,"scriptSizeBytes":1471}
+pscaleNatural (II) {"exBudgetCPU":610778273,"exBudgetMemory":578390,"scriptSizeBytes":1607}
+pscaleNatural (ID) {"exBudgetCPU":321337789,"exBudgetMemory":290874,"scriptSizeBytes":1483}
+pscaleInteger positive (II) {"exBudgetCPU":610966110,"exBudgetMemory":579291,"scriptSizeBytes":1925}
+pscaleInteger positive (ID) {"exBudgetCPU":321525626,"exBudgetMemory":291775,"scriptSizeBytes":1789}
+pec2Scale positive (DD, 8 times smaller) {"exBudgetCPU":1053146819,"exBudgetMemory":132257,"scriptSizeBytes":2651}
+pscaleInteger negative (II) {"exBudgetCPU":613326420,"exBudgetMemory":589145,"scriptSizeBytes":1927}
+pscaleInteger negative (ID) {"exBudgetCPU":321525626,"exBudgetMemory":291775,"scriptSizeBytes":1789}
+pec2Scale negative (DD, 8 times smaller) {"exBudgetCPU":1055626007,"exBudgetMemory":140626,"scriptSizeBytes":2661}
+scale-add (II) {"exBudgetCPU":205141864,"exBudgetMemory":223648,"scriptSizeBytes":3414}
+scale-add (ID) {"exBudgetCPU":99850088,"exBudgetMemory":110316,"scriptSizeBytes":3184}
+scale-add (DD) {"exBudgetCPU":579644274,"exBudgetMemory":120400,"scriptSizeBytes":5634}
