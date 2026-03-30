@@ -52,6 +52,7 @@ import Plutarch.Prelude (
     pupcast,
     pzero,
     (#),
+    (#$),
     (#+),
     (#-),
     (:-->),
@@ -109,15 +110,21 @@ main = do
         , plutarchGolden
             "Case 5: goldens"
             "extension-ec"
-            [ goldenEval "pec2OnCurve" (pec2OnCurve pblsOrder validRSquared validCurveA validCurveB blsC1')
-            , goldenEval "#+ (II)" (evalCurve # (blsC1 #+ blsC2))
+            [ goldenEval "pec2OnCurve" (pec2OnCurve pblsOrder validRSquared validCurveA validCurveB blsC1)
+            , goldenEval "#+ (II)" (evalCurveII # (blsC1II #+ blsC2II))
             , -- Blows budget
               -- , goldenEval "pec2Add (DD)" (evalCurve' # DD.pec2Add pblsOrder validRSquared validCurveA blsC1Direct blsC2Direct)
-              goldenEval "pscalePositive (II)" (pscalePositive blsC1 (punsafeCoerce @_ @PInteger 70))
-            , goldenEval "pnegate (II)" (pnegate # blsC1)
-            , goldenEval "pscaleNatural (II)" (pscaleNatural blsC1 (punsafeCoerce @_ @PInteger 70))
-            , goldenEval "pscaleInteger positive (II)" (pscaleInteger blsC1 70)
-            , goldenEval "pscaleInteger negative (II)" (pscaleInteger blsC1 (-70))
+              goldenEval "#+ (ID)" (evalCurveID # (blsC1ID #+ blsC2ID))
+            , goldenEval "pscalePositive (II)" (pscalePositive blsC1II (punsafeCoerce @_ @PInteger 70))
+            , goldenEval "pscalePositive (ID)" (pscalePositive blsC1ID (punsafeCoerce @_ @PInteger 70))
+            , goldenEval "pnegate (II)" (evalCurveII #$ pnegate # blsC1II)
+            , goldenEval "pnegate (ID)" (evalCurveID #$ pnegate # blsC1ID)
+            , goldenEval "pscaleNatural (II)" (pscaleNatural blsC1II (punsafeCoerce @_ @PInteger 70))
+            , goldenEval "pscaleNatural (ID)" (pscaleNatural blsC1ID (punsafeCoerce @_ @PInteger 70))
+            , goldenEval "pscaleInteger positive (II)" (pscaleInteger blsC1II 70)
+            , goldenEval "pscaleInteger positive (ID)" (pscaleInteger blsC1ID 70)
+            , goldenEval "pscaleInteger negative (II)" (pscaleInteger blsC1II (-70))
+            , goldenEval "pscaleInteger negative (ID)" (pscaleInteger blsC1ID 70)
             ]
         ]
   where
@@ -127,8 +134,10 @@ main = do
     moreTests = max 1_000
     lotsMoreTests :: QuickCheckTests -> QuickCheckTests
     lotsMoreTests = max 10_000
-    evalCurve :: forall (s :: S). Term s (II.PEC2Intermediate :--> PEC2Point)
-    evalCurve = phoistAcyclic $ plam $ II.pec2FromIntermediate pblsOrder validRSquared validCurveA
+    evalCurveII :: forall (s :: S). Term s (II.PEC2Intermediate :--> PEC2Point)
+    evalCurveII = phoistAcyclic $ plam $ II.pec2FromIntermediate pblsOrder validRSquared validCurveA
+    evalCurveID :: forall (s :: S). Term s (ID.PEC2Intermediate :--> PEC2Point)
+    evalCurveID = phoistAcyclic $ plam $ ID.pec2FromIntermediate pblsOrder validRSquared validCurveA
 
 {-
     evalCurve' :: forall (s :: S). Term s (DD.PEC2Intermediate :--> PEC2Point)
@@ -418,11 +427,14 @@ validY2 = 0x606c4a0_2ea734cc_32acd2b0_2bc28b99_cb3e287e_85a763af_267492ab_572e99
 validRSquared :: forall (s :: S). Term s PPositive
 validRSquared = evalTerm' NoTracing (punsafeCoerce $ pmod # (-1) # pupcast (pconstant @PNatural bls2Order))
 
-blsC1' :: forall (s :: S). Term s PEC2Point
-blsC1' = evalTerm' NoTracing (pec2FromElems (pconstant . mkBLS validX1 $ validY1) (pconstant . mkBLS validX2 $ validY2))
+blsC1 :: forall (s :: S). Term s PEC2Point
+blsC1 = evalTerm' NoTracing (pec2FromElems (pconstant . mkBLS validX1 $ validY1) (pconstant . mkBLS validX2 $ validY2))
 
-blsC1 :: forall (s :: S). Term s II.PEC2Intermediate
-blsC1 = evalTerm' NoTracing (II.pec2ToIntermediate blsC1')
+blsC1II :: forall (s :: S). Term s II.PEC2Intermediate
+blsC1II = evalTerm' NoTracing (II.pec2ToIntermediate blsC1)
+
+blsC1ID :: forall (s :: S). Term s ID.PEC2Intermediate
+blsC1ID = evalTerm' NoTracing (ID.pec2ToIntermediate blsC1)
 
 {-
 blsC1Direct :: forall (s :: S). Term s DD.PEC2Intermediate
@@ -432,8 +444,11 @@ blsC2Direct :: forall (s :: S). Term s DD.PEC2Intermediate
 blsC2Direct = evalTerm' NoTracing (DD.pec2Scale pblsOrder validRSquared validCurveA blsC1Direct 3)
 -}
 
-blsC2 :: forall (s :: S). Term s II.PEC2Intermediate
-blsC2 = evalTerm' NoTracing (pscaleInteger blsC1 3)
+blsC2II :: forall (s :: S). Term s II.PEC2Intermediate
+blsC2II = evalTerm' NoTracing (pscaleInteger blsC1II 3)
+
+blsC2ID :: forall (s :: S). Term s ID.PEC2Intermediate
+blsC2ID = evalTerm' NoTracing (pscaleInteger blsC1ID 3)
 
 mkBLS :: Natural -> Natural -> D2Element
 mkBLS x y = mkD2Element x y bls2Order
