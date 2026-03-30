@@ -86,7 +86,9 @@ pec2ToIntermediate ::
     forall (s :: S).
     Term s PEC2Point ->
     Term s PEC2Intermediate
-pec2ToIntermediate = punsafeCoerce
+pec2ToIntermediate t = pmatch t $ \case
+    PEC2Infinity -> pcon PEC2InfinityI
+    PEC2Point x y -> pcon . PEC2PointI (pd2FromElem x) . pd2FromElem $ y
 
 -- | @since wip
 pec2FromIntermediate ::
