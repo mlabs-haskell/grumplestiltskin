@@ -103,4 +103,5 @@ test-suite bls-verifier
     , cardano-crypto-class
     , plutus-core
     , poly
+    , semirings
     , vector

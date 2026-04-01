@@ -1,16 +1,20 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Main (main) where
 
 import Cardano.Crypto.EllipticCurve.BLS12_381 (
+    BLS,
     Curve1,
     Curve2,
     Point,
     blsAddOrDouble,
     blsGenerator,
     blsMult,
-    blsNeg,
  )
 import Control.Monad (guard)
-import Data.Poly (Poly, toPoly, unPoly)
+import Data.Euclidean qualified as Euclid
+import Data.Maybe (fromJust)
+import Data.Poly (Poly, eval, monomial, toPoly, unPoly, pattern X)
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
@@ -54,21 +58,29 @@ main = do
         [ testProperty "prover accepts valid commitments" propValid
         ]
   where
+    -- TODO: Lower this after constraints on P/R values known
+    --       (lots of cases help with determining those constraints)
     moreTests :: QuickCheckTests -> QuickCheckTests
-    moreTests = max 1_000
+    moreTests = max 10_000
 
 -- Properties
-
 propValid :: Property
-propValid = forAllShrink arbitrary shrink $ \(Tau tau, R r, p@(MyPoly p')) ->
-    let asVector = p'
+propValid = forAllShrink arbitrary shrink $ \(Tau tau, R r, Polynomial p) ->
+    let asVector = unPoly p
         len = Vector.length asVector
         trustedSetupTaus = Vector.generate len (\e -> blsMult g1 (tau ^ e))
-        pCommitment@(G1.Element pCommitment') = G1.Element . Vector.foldl1' blsAddOrDouble . Vector.zipWith blsMult trustedSetupTaus $ asVector
-        pAtR = myEval r p
-        qCommitment = G1.Element . blsAddOrDouble pCommitment' . blsNeg . blsMult g1 $ pAtR
+        pCommitment = commit p trustedSetupTaus
+        pAtR = eval p r
+        qX = fromJust $ (p - constPoly pAtR) `Euclid.divide` (X - constPoly r)
+        qCommitment = commit qX trustedSetupTaus
         tauScaleG2 = G2.Element $ blsMult g2 tau
-     in counterexample ("Commitment to P: " <> show pCommitment)
+     in counterexample ("P(x) = " <> show (Polynomial p) <> ",  " <> show (unPoly p))
+            . counterexample ("r = " <> show r)
+            . counterexample ("P(r) = " <> show (Polynomial (constPoly pAtR)) <> ",  " <> show (unPoly (constPoly pAtR)))
+            . counterexample ("Commitment to P: " <> show pCommitment)
+            . counterexample ("Q(x) numerator: " <> show (Polynomial (p - monomial 1 pAtR)))
+            . counterexample ("Q(x) denominator: " <> show (Polynomial (toPoly (Vector.fromList [1, negate r]))))
+            . counterexample ("Q(x) = " <> show qX <> ",  " <> show (unPoly qX))
             . counterexample ("Commitment to Q: " <> show pCommitment)
             $ plift
                 ( precompileTerm (plam go)
@@ -104,6 +116,24 @@ g2 = blsGenerator @Curve2
 pG2 :: forall (s :: S). Term s PBuiltinBLS12_381_G2_Element
 pG2 = pconstant . G2.Element $ g2
 
+-- easier to read than 'blsMult'
+(#*) :: (BLS curve) => Point curve -> Integer -> Point curve
+a #* b = blsMult a b
+
+-- easier to read than 'blsAddOrDouble'
+(#+) :: (BLS curve) => Point curve -> Point curve -> Point curve
+a #+ b = blsAddOrDouble a b
+
+-- Helper for constructing commitments. Takes a polynomial and a vector of curve points and
+-- calculates the sum of scaling each curve point by the coefficient of the polynomial.
+commit :: Poly Vector Integer -> Vector (Point Curve1) -> G1.Element
+commit poly taus = G1.Element . Vector.foldl1' (#+) . Vector.zipWith (#*) taus $ unPoly poly
+
+-- "lifts" an Integer into a constant polynomial
+-- e.g. `constPoly 5 = 5x^0`
+constPoly :: Integer -> Poly Vector Integer
+constPoly i = toPoly (Vector.fromList [i])
+
 newtype Tau = Tau Integer
     deriving (Eq) via Integer
     deriving stock (Show)
@@ -127,32 +157,9 @@ newtype R = R Integer
     deriving (Eq) via Integer
     deriving stock (Show)
 
+-- If I'm right, R can actually be anything at all, but there are some (sensible) restrictions on P
 instance Arbitrary R where
-    arbitrary = R <$> (arbitrary `suchThat` (\x -> x < (-1) || x > 1))
-    shrink (R r) =
-        R <$> do
-            r' <- shrink r
-            guard (r' < (-1) || r' > 1)
-            pure r'
-
--- index corresponds to the power, elements of the vector are coefficients
-newtype MyPoly = MyPoly (Vector Integer)
-    deriving (Show) via (Vector Integer)
-
-instance Arbitrary MyPoly where
-    arbitrary = do
-        Positive len <- arbitrary
-        MyPoly <$> Vector.replicateM len (arbitrary @Integer `suchThat` (\x -> x < (-1) || x > 1))
-    shrink (MyPoly v) = do
-        shrunk <- liftShrink (fmap getNonZero . shrink . NonZero) v
-        guard (Vector.length shrunk > 0)
-        pure (MyPoly shrunk)
-
-myEval :: Integer -> MyPoly -> Integer
-myEval x (MyPoly v) = Vector.ifoldl' go 0 v
-  where
-    go :: Integer -> Int -> Integer -> Integer
-    go acc i c = acc + c * (x ^ (fromIntegral i :: Integer))
+    arbitrary = R <$> arbitrary
 
 newtype Polynomial = Polynomial (Poly Vector Integer)
     deriving (Eq) via (Poly Vector Integer)
@@ -167,10 +174,12 @@ instance Arbitrary Polynomial where
     arbitrary =
         Polynomial . toPoly <$> do
             Positive len <- arbitrary
-            Vector.replicateM (len + 5) (arbitrary @Integer `suchThat` (\x -> x < (-1) || x > 1))
+            Vector.replicateM (len + 1) (arbitrary @Integer `suchThat` (/= 0))
+
+    -- Vector.replicateM (len) (arbitrary @Integer `suchThat` (\x -> x < (-1) || x > 1))
     shrink (Polynomial p) =
         Polynomial . toPoly <$> do
             let asVector = unPoly p
             shrunk <- liftShrink (fmap getNonZero . shrink . NonZero) asVector
-            guard (Vector.length shrunk > 4)
+            guard (Vector.length shrunk > 0)
             pure shrunk
