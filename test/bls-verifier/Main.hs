@@ -31,24 +31,29 @@ import Plutarch.Prelude (
     pconstant,
     plam,
     plift,
+    pnot,
     (#),
+    (#$),
  )
 import Plutarch.Test.Utils (precompileTerm)
 import PlutusCore.Crypto.BLS12_381.G1 qualified as G1
 import PlutusCore.Crypto.BLS12_381.G2 qualified as G2
 import Test.QuickCheck (
     Arbitrary (arbitrary, shrink),
+    Gen,
     NonZero (NonZero),
     Positive (Positive),
     Property,
+    chooseInt,
     counterexample,
     forAllShrink,
     getNonZero,
     liftShrink,
+    suchThat,
  )
 import Test.QuickCheck.Instances ()
 import Test.Tasty (adjustOption, defaultMain, testGroup)
-import Test.Tasty.QuickCheck (QuickCheckTests, suchThat, testProperty)
+import Test.Tasty.QuickCheck (QuickCheckTests, testProperty)
 
 main :: IO ()
 main = do
@@ -56,6 +61,7 @@ main = do
     setLocaleEncoding utf8
     defaultMain . adjustOption moreTests . testGroup "Tests" $
         [ testProperty "prover accepts valid commitments" propValid
+        , testProperty "verifier rejects invalid commitments" propInvalid
         ]
   where
     -- TODO: Lower this after constraints on P/R values known
@@ -102,6 +108,52 @@ propValid = forAllShrink arbitrary shrink $ \(Tau tau, R r, Polynomial p) ->
     go pCommitment qCommitment pAtR tauScaleG2 r =
         verify # pG1 # tauScaleG2 # pG2 # pCommitment # r # pAtR # qCommitment
 
+propInvalid :: Property
+propInvalid = forAllShrink genFailCase shrink $ \(Tau tau, R r, Polynomial p1, Polynomial p2) ->
+    let asVector1 = unPoly p1
+        asVector2 = unPoly p2
+        len = max (Vector.length asVector1) (Vector.length asVector2)
+        trustedSetupTaus = Vector.generate len (\e -> blsMult g1 (tau ^ e))
+        pCommitment = commit p1 trustedSetupTaus
+        pAtR = eval p2 r
+        qX = fromJust $ (p2 - constPoly pAtR) `Euclid.divide` (X - constPoly r)
+        qCommitment = commit qX trustedSetupTaus
+        tauScaleG2 = G2.Element $ blsMult g2 tau
+     in counterexample ("P(x) = " <> show (Polynomial p1) <> ",  " <> show (unPoly p1))
+            . counterexample ("r = " <> show r)
+            . counterexample ("P(r) = " <> show (Polynomial (constPoly pAtR)) <> ",  " <> show (unPoly (constPoly pAtR)))
+            . counterexample ("Commitment to P: " <> show pCommitment)
+            . counterexample ("Q(x) numerator: " <> show (Polynomial (p2 - monomial 1 pAtR)))
+            . counterexample ("Q(x) denominator: " <> show (Polynomial (toPoly (Vector.fromList [1, negate r]))))
+            . counterexample ("Q(x) = " <> show qX <> ",  " <> show (unPoly qX))
+            . counterexample ("Commitment to Q: " <> show pCommitment)
+            $ plift
+                ( precompileTerm (plam go)
+                    # pconstant pCommitment
+                    # pconstant qCommitment
+                    # pconstant pAtR
+                    # pconstant tauScaleG2
+                    # pconstant r
+                )
+  where
+    genFailCase :: Gen (Tau, R, Polynomial, Polynomial)
+    genFailCase = do
+        tau <- arbitrary
+        r <- arbitrary
+        p1 <- arbitrary
+        p2 <- arbitrary `suchThat` (/= p1)
+        pure (tau, r, p1, p2)
+    go ::
+        forall (s :: S).
+        Term s PBuiltinBLS12_381_G1_Element ->
+        Term s PBuiltinBLS12_381_G1_Element ->
+        Term s PInteger ->
+        Term s PBuiltinBLS12_381_G2_Element ->
+        Term s PInteger ->
+        Term s PBool
+    go pCommitment qCommitment pAtR tauScaleG2 r =
+        pnot #$ verify # pG1 # tauScaleG2 # pG2 # pCommitment # r # pAtR # qCommitment
+
 -- Helpers
 
 g1 :: Point Curve1
@@ -127,7 +179,12 @@ a #+ b = blsAddOrDouble a b
 -- Helper for constructing commitments. Takes a polynomial and a vector of curve points and
 -- calculates the sum of scaling each curve point by the coefficient of the polynomial.
 commit :: Poly Vector Integer -> Vector (Point Curve1) -> G1.Element
-commit poly taus = G1.Element . Vector.foldl1' (#+) . Vector.zipWith (#*) taus $ unPoly poly
+commit poly taus
+    | null asVec = G1.Element $ Vector.head taus #* 0
+    | otherwise = G1.Element . Vector.foldl1' (#+) . Vector.zipWith (#*) taus $ unPoly poly
+  where
+    asVec :: Vector Integer
+    asVec = unPoly poly
 
 -- "lifts" an Integer into a constant polynomial
 -- e.g. `constPoly 5 = 5x^0`
@@ -174,7 +231,9 @@ instance Arbitrary Polynomial where
     arbitrary =
         Polynomial . toPoly <$> do
             Positive len <- arbitrary
-            Vector.replicateM (len + 1) (arbitrary @Integer `suchThat` (/= 0))
+            nonZeroPos <- chooseInt (0, len)
+            NonZero nonZeroCoef <- arbitrary
+            Vector.generateM (len + 1) (\i -> if i == nonZeroPos then pure nonZeroCoef else arbitrary @Integer)
 
     -- Vector.replicateM (len) (arbitrary @Integer `suchThat` (\x -> x < (-1) || x > 1))
     shrink (Polynomial p) =
@@ -182,4 +241,5 @@ instance Arbitrary Polynomial where
             let asVector = unPoly p
             shrunk <- liftShrink (fmap getNonZero . shrink . NonZero) asVector
             guard (Vector.length shrunk > 0)
+            guard (any (/= 0) shrunk)
             pure shrunk
