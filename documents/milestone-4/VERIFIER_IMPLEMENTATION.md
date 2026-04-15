@@ -2,7 +2,7 @@
 
 ## Introduction
 
-In accordance with the goals of Milestone 3, we designed and implemented a ZK proof verifier prototype using existing Plutus BLS primitives and builtin functions, plus a set of basic "offchain" tools which allow us to simulate the steps performed by the prover. We also verified the correctness of the implementation with a simple property test suite. The details of the work on this milestone are as follows:
+In accordance with the goals of Milestone 4, we designed and implemented a ZK proof verifier prototype using existing Plutus BLS primitives and builtin functions, plus a set of basic "offchain" tools which allow us to simulate the steps performed by the prover. We also verified the correctness of the implementation with a simple property test suite. The details of the work on this milestone are as follows:
   - `src/Grumplestiltskin/Verify.hs` contains our implementation of the verifier
   - `test/bls-verifier/Main.hs` contains our property test suite, including the "offchain" code that simulates the prover
 
