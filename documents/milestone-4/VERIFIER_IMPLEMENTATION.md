@@ -1,8 +1,8 @@
-# Implementation of PLONK using BLS12-381 Plutus primitives
+# Implementation of KZG using BLS12-381 Plutus primitives
 
 ## Introduction
 
-We implemented single-commitment [PLONK][plonk] using the BLS12-381 pair of
+We implemented [KZG-style][kzg] single polynomial opening verifier using the BLS12-381 pair of
 elliptic curves, with the builtins provided by Plutus Core. This was designed to
 serve two functions in the overall project, specifically relative Milestone 3
 functionality:
@@ -10,11 +10,15 @@ functionality:
 * A correctness reference; and
 * A performance comparison point.
 
-To this end, we implemented a basic PLONK verifier (with a set of assumptions,
-to be described), as well as tests to verify it works correctly. The verifier
-was implemented as the `verify` function in the `Grumplestiltskin.Verify`
-module. We also defined a set of property-based tests in `test/bls-verifier`,
-which check both 'should verify' and 'shouldn't verify' cases. 
+To this end, we implemented a basic verifier for single polynomial commitments, 
+(with a set of assumptions, to be described), as well as tests to verify it 
+works correctly. The verifier was implemented as the `verify` function in the 
+`Grumplestiltskin.Verify` module. We also defined a set of property-based tests 
+in `test/bls-verifier`, which check both 'should verify' and 'shouldn't verify' cases. 
+
+We did not implement a full PLONK-like system, but the single polynomial commitment
+scheme used here serves as the foundation upon which a more sophisticated PLONK-like 
+system may be built.
 
 ## Goals and priorities
 
@@ -28,9 +32,9 @@ In particular, we made several decisions around the implementation, and its
 testing, with this in mind. We elaborate these further in the Implementation
 and Testing sections of this report.
 
-## Overview of ZKP and PLONK
+## Overview of ZKP and KZG
 
-For clarity, we give an overview of zero-knowledge proofs, and the PLONK
+For clarity, we give an overview of zero-knowledge proofs, and the KZG-style
 commitment scheme. This is not designed to be a definitive description: we
 provide only the information needed to make our implementation choices clear. 
 
@@ -66,12 +70,12 @@ requirements:
   verifier, the verifier learns nothing more about the information than the fact
   the prover knows it (_zero-knowledge_).
 
-### PLONK over BLS12-381 preliminaries
+### KZG over BLS12-381 preliminaries
 
-Our specific choice of zero-knowledge scheme is [PLONK][plonk]. In this scheme,
-the information provers want to demonstrate knowledge of is represented as a
+Our zero-knowledge scheme is KZG-style single polynomial open verification. In this 
+scheme, the information provers want to demonstrate knowledge of is represented as a
 [polynomial][polynomial] $P$, of degree $d$, with all coefficients being
-integers. While seemingly restrictive, this is in fact sufficient to represent
+elements of a finite field. While seemingly restrictive, this is in fact sufficient to represent
 any data: given a binary string $B = b_0, b_1, \ldots b_k$, we can encode it as the
 polynomial
 
@@ -80,24 +84,24 @@ B_p(x) = b_0 \cdot x^0 + b_1 \cdot x^1 + \ldots + b_k \cdot x^k
 $$
 
 Furthermore, polynomials of this kind can also encode [circuits][plonk-circuit],
-which allows provers to demonstrate knowledge of computations. Lastly, PLONK
-allows provers to demonstrate knowledge of multiple polynomials at once. We will
-not consider these here, as they do not change the verification process itself.
+which allows provers to demonstrate knowledge of computations. More sophisticated PLONK-style 
+scheme allow provers to demonstrate knowledge of multiple polynomials at once. We will
+not consider these here, as they do not change the core of the verification process itself.
 
-In order to be useful, PLONK requires a pair of [elliptic curves][elliptic
-curve] connected by a [bilinear map][bilinear-map], with both curves being
+In order to be useful, a KZG scheme requires a pair of [elliptic curves][elliptic-curve] 
+connected by a [bilinear map][bilinear-map], with both curves being
 defined over some [finite field][finite-field]. We use the [BLS12-381-G1 and
 BLS12-381-G2 curves][bls12-381] for this purpose. For our specific purpose, it
 is enough for us to know the following:
 
 * Both elliptic curves form an [abelian groups][abelian-group-ec]; and
 * Given the curves $E_1, E_2$, there exists a function $e : (E_1, E_2) \rightarrow E$
-  such that for any $p_1 \in E_1, p_2 \in E_2, k \in \mathbb{Z}$, $e(k \cdot
+  such that for any $p_1 \in E_1, p_2 \in E_2, k \in \mathbb{F}_n$, $e(k \cdot
   p_1, p_2) = e(p_1, k \cdot p_2)$, where $\cdot$ is group exponentiation
   (repeated group operation).
 
 We note the following algebraic identities. Given some elliptic curve (as
-restricted above) $E$, $p_1 \in E$ and $k, \ell \in \mathbb{Z}$, with $\mathbb{+}$ as the
+restricted above) $E$ over a finite field $\mathbb{F}_n$, $p_1 \in E$ and $k, \ell \in \mathbb{F}_n$, with $\mathbb{+}$ as the
 group operation and $\mathbb{0}$ as the group identity, we have:
 
 * $k \cdot p_1 \mathbb{+} \ell \cdot p_1 = (k + \ell) \cdot p_1$
@@ -111,11 +115,11 @@ replacing multiplication by a coefficient with group exponentiation, where a
 zero coefficient yields the group identity and a negative coefficient scales the
 group inverse of the indeterminate instead.
 
-An important component of PLONK is the _trusted setup_, which consists of a set
+An important component of KZG is the _trusted setup_, which consists of a set
 of values available to both the prover and verifier. A trusted setup consists of
 the following:
 
-* Some $\tau \in \mathbb{Z}$. This value is never directly revealed to either
+* Some $\tau$, an element of a finite field. This value is never directly revealed to either
   the prover or verifier.
 * Some $p_1 \in E_1, p_2 \in E_2$. These are public information to both prover
   and verifier.
@@ -130,15 +134,15 @@ it. The security of this process is based on the assumed hardness of the
 [discrete logarithm problem][discrete-logarithm] over elliptic curves of this
 form. Provided that $d$ is large enough (specifically, not less than the degree
 of any polynomial we need to evaluate for verification), however, we can still
-use $\tau$ as required by the PLONK protocol. We will explain this process in
+use $\tau$ as required by the KZG protocol. We will explain this process in
 the subsequent section.
 
-### Description of PLONK verification over BLS12-381
+### Description of KZG verification over BLS12-381
 
 Throughout this section, we use $E_1$ to refer to the elliptic curve defined
 over the BLS12-381-G1 finite field, and $E_2$ to refer to the elliptic curve
 defined over the BLS12-381-G2 finite field. Let $e : (E_1, E_2) \rightarrow E$ represent
-a bilinear map. We will use `g_1 \in E_1, g2 \in E_2$ to represent designated
+a bilinear map. We will use $g_1 \in E_1, g2 \in E_2$ to represent designated
 points on each curve as provided by the trusted setup, and $\tau$ to represent
 the (hidden) constant used to evaluate commitments. We use $\mathbb{+}$ to
 represent the group operation, and $\mathbb{-}$ to represent $\mathbb{+}$ with
@@ -166,7 +170,7 @@ $$
 
 by the algebraic identities given previously. The prover then sends the
 commitment to $P$ to the verifier. In response, the verifier sends a _challenge_
-$k \in \mathbb{Z}$. The prover then constructs a polynomial $Q$, which, with
+$k \in \mathbb{F}_{k}$. The prover then constructs a polynomial $Q$, which, with
 indeterminate $x$ is defined as
 
 $$
@@ -179,7 +183,7 @@ division even if evaluated at a field. The prover then constructs a commitment
 to $Q$ by producing
 
 $$
-\tau \cdot Q(g_1) \in E_2
+\tau \cdot Q(g_1) \in E_1
 $$
 
 using the same method as the commitment to $P$. The prover sends the commitment
@@ -202,7 +206,7 @@ prover can thus conclude that the prover does indeed know $P$.
 
 ## Implementation
 
-Based on our goals, we decided to implement PLONK verification as a single
+Based on our goals, we decided to implement KZG verification as a single
 Plutarch function. In particular, we made the following decisions:
 
 * Not making a full validator; 
@@ -225,20 +229,13 @@ with regard to distributed consensus (even in the presence of adversaries), as
 well as techniques similar to [the multiplayer RNG][multiplayer-rng]. Thus, we
 assume that this problem has been solved.
 
-Lastly, the interactive description of the PLONK verification process does not
+Lastly, the interactive description of the KZG verification process does not
 lend itself well to an implementation on the blockchain, where this kind of
-interaction is costly. The main reason the interaction is required is that the
-choice of $r$ is adversarial relative the prover: effectively, the verifier
-should choose 'the most difficult' $r$ possible in order to challenge the
-prover's claims to knowledge. What this means in practice is that the verifier
-is incentivized to choose a number that's as random as possible: essentially, it
-must resemble the output of a [cryptographically-secure
-PRNG][cryptographically-secure-prng]. Indeed, without knowing more about the $P$
-that the prover wants to demonstrate knowledge of, the verifier cannot choose a
-'worse' challenge in general. Given the assumption that a trusted setup exists,
-and that it is capable of producing $\tau$ pseudorandomly, without revealing
-$\tau$ to either party, having the same setup produce $r$ _without_ the
-requirement that it be hidden seems to pose no problem.
+interaction is costly. Fortunately, the transformation of this interactive process 
+into a non-interactive process is a [well-established result][fiat-shamir]. For simplicity, 
+we assumed that all necessary parameters could be supplied by the prover directly, 
+without interaction with the verifier. While not identical to the [Fiat-Shamir][fiat-shamir] 
+transformation, it is sufficient to demonstrate what we require.
 
 Based on the above decisions, we implemented the verification functionality in
 `Grumplestiltskin.Verify` as follows:
@@ -304,7 +301,8 @@ To this end, we need to generate the following:
 * $P^{\prime} \neq P$
 
 For all polynomial operations (including generation) we used the [`poly`][poly]
-library. As $\tau$ and $r$ are both `Integer`s, they could be generated
+library. As $\tau$ and $r$ are both `Integer`s to simplify testing (though 
+conceptually they could be elements of an arbitrary finite field) they could be generated
 directly. We excluded certain specific generated results:
 
 * Any zero polynomial; firstly, as knowledge of the zero polynomial is trivial
@@ -326,6 +324,7 @@ We defined two properties:
 These properties together demonstrate both that the 'happy path' works, but also
 that a fabricated commitment will be rejected.
 
+[kzg]: https://www.zkdocs.com/docs/zkdocs/commitments/kzg_polynomial_commitment/
 [plonk]: https://eprint.iacr.org/2019/953
 [zkp]: https://en.wikipedia.org/wiki/Zero-knowledge_proof
 [polynomial]: https://en.wikipedia.org/wiki/Polynomial
@@ -341,3 +340,4 @@ that a fabricated commitment will be rejected.
 [cip-381]: https://github.com/cardano-foundation/CIPs/tree/master/CIP-0381
 [poly]: https://hackage.haskell.org/package/poly
 [discrete-logarithm]: https://en.wikipedia.org/wiki/Discrete_logarithm#Cryptography
+[fiat-shamir]: https://mit6875.github.io/PAPERS/Fiat-Shamir.pdf
