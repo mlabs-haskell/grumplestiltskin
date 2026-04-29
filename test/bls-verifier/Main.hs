@@ -126,7 +126,7 @@ propInvalid = forAllShrink genFailCase shrink $ \(Tau tau, R r, Polynomial p1, P
             . counterexample ("Q(x) numerator: " <> show (Polynomial (p2 - monomial 1 pAtR)))
             . counterexample ("Q(x) denominator: " <> show (Polynomial (toPoly (Vector.fromList [1, negate r]))))
             . counterexample ("Q(x) = " <> show qX <> ",  " <> show (unPoly qX))
-            . counterexample ("Commitment to Q: " <> show pCommitment)
+            . counterexample ("Commitment to Q: " <> show qCommitment)
             $ plift
                 ( precompileTerm (plam go)
                     # pconstant pCommitment
