@@ -232,8 +232,10 @@ assume that this problem has been solved.
 Lastly, the interactive description of the KZG verification process does not
 lend itself well to an implementation on the blockchain, where this kind of
 interaction is costly. Fortunately, the transformation of this interactive process 
-into a non-interactive process is a [well-established result][fiat-shamir], which we have 
-made use of here. 
+into a non-interactive process is a [well-established result][fiat-shamir]. For simplicity, 
+we assumed that all necessary parameters could be supplied by the prover directly, 
+without interaction with the verifier. While not identical to the [Fiat-Shamir][fiat-shamir] 
+transformation, it is sufficient to demonstrate what we require.
 
 Based on the above decisions, we implemented the verification functionality in
 `Grumplestiltskin.Verify` as follows:
