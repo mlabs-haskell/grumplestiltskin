@@ -231,20 +231,9 @@ assume that this problem has been solved.
 
 Lastly, the interactive description of the KZG verification process does not
 lend itself well to an implementation on the blockchain, where this kind of
-interaction is costly. The main reason the interaction is required is that the
-choice of $r$ is adversarial relative the prover: effectively, the verifier
-should choose 'the most difficult' $r$ possible in order to challenge the
-prover's claims to knowledge. What this means in practice is that the verifier
-is incentivized to choose a number that's as random as possible: essentially, it
-must resemble the output of a [cryptographically-secure
-PRNG][cryptographically-secure-prng]. Indeed, without knowing more about the $P$
-that the prover wants to demonstrate knowledge of, the verifier cannot choose a
-'worse' challenge in general. Given the assumption that a trusted setup exists,
-and that it is capable of producing $\tau$ pseudorandomly, without revealing
-$\tau$ to either party, having the same setup produce $r$ _without_ the
-requirement that it be hidden seems to be a safe simplifying assumption for
-the purpose of testing. (It is likely a necessary simplifying assumption for testing, 
-as having a third party generate $r$ would require a suite of fully-developed contracts.)
+interaction is costly. Fortunately, the transformation of this interactive process 
+into a non-interactive process is a [well-established result][fiat-shamir], which we have 
+made use of here. 
 
 Based on the above decisions, we implemented the verification functionality in
 `Grumplestiltskin.Verify` as follows:
@@ -349,3 +338,4 @@ that a fabricated commitment will be rejected.
 [cip-381]: https://github.com/cardano-foundation/CIPs/tree/master/CIP-0381
 [poly]: https://hackage.haskell.org/package/poly
 [discrete-logarithm]: https://en.wikipedia.org/wiki/Discrete_logarithm#Cryptography
+[fiat-shamir]: https://mit6875.github.io/PAPERS/Fiat-Shamir.pdf
