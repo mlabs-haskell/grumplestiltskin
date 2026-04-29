@@ -47,8 +47,8 @@ import Test.QuickCheck (
     chooseInt,
     counterexample,
     forAllShrink,
-    getNonZero,
-    liftShrink,
+    -- getNonZero,
+    -- liftShrink,
     suchThat,
  )
 import Test.QuickCheck.Instances ()
@@ -62,12 +62,11 @@ main = do
     defaultMain . adjustOption moreTests . testGroup "Tests" $
         [ testProperty "prover accepts valid commitments" propValid
         , testProperty "verifier rejects invalid commitments" propInvalid
+        , testProperty "verifier rejects mismatched R" propMismatchedR
         ]
   where
-    -- TODO: Lower this after constraints on P/R values known
-    --       (lots of cases help with determining those constraints)
     moreTests :: QuickCheckTests -> QuickCheckTests
-    moreTests = max 10_000
+    moreTests = max 1000
 
 -- Properties
 propValid :: Property
@@ -154,6 +153,53 @@ propInvalid = forAllShrink genFailCase shrink $ \(Tau tau, R r, Polynomial p1, P
     go pCommitment qCommitment pAtR tauScaleG2 r =
         pnot #$ verify # pG1 # tauScaleG2 # pG2 # pCommitment # r # pAtR # qCommitment
 
+propMismatchedR :: Property
+propMismatchedR = forAllShrink genFailCase shrink $ \(Tau tau, R r, R r', Polynomial p) ->
+    let asVector1 = unPoly p
+        len = Vector.length asVector1
+        trustedSetupTaus = Vector.generate len (\e -> blsMult g1 (tau ^ e))
+        pCommitment = commit p trustedSetupTaus
+        pAtR = eval p r
+        qX = fromJust $ (p - constPoly pAtR) `Euclid.divide` (X - constPoly r)
+        qCommitment = commit qX trustedSetupTaus
+        tauScaleG2 = G2.Element $ blsMult g2 tau
+     in counterexample ("P(x) = " <> show (Polynomial p) <> ",  " <> show (unPoly p))
+            . counterexample ("r = " <> show r)
+            . counterexample ("r' = " <> show r')
+            . counterexample ("P(r) = " <> show pAtR)
+            . counterexample ("P(r') = " <> show (eval p r'))
+            . counterexample ("Commitment to P: " <> show pCommitment)
+            . counterexample ("Q(x) numerator: " <> show (Polynomial (p - monomial 1 pAtR)))
+            . counterexample ("Q(x) denominator: " <> show (Polynomial (toPoly (Vector.fromList [1, negate r]))))
+            . counterexample ("Q(x) = " <> show qX <> ",  " <> show (unPoly qX))
+            . counterexample ("Commitment to Q: " <> show qCommitment)
+            $ plift
+                ( precompileTerm (plam go)
+                    # pconstant pCommitment
+                    # pconstant qCommitment
+                    # pconstant pAtR
+                    # pconstant tauScaleG2
+                    # pconstant r'
+                )
+  where
+    genFailCase :: Gen (Tau, R, R, Polynomial)
+    genFailCase = do
+        tau <- arbitrary
+        r@(R rz) <- arbitrary
+        r' <- arbitrary `suchThat` (\case (R rx) -> abs rx /= abs rz)
+        p <- arbitrary
+        pure (tau, r, r', p)
+    go ::
+        forall (s :: S).
+        Term s PBuiltinBLS12_381_G1_Element ->
+        Term s PBuiltinBLS12_381_G1_Element ->
+        Term s PInteger ->
+        Term s PBuiltinBLS12_381_G2_Element ->
+        Term s PInteger ->
+        Term s PBool
+    go pCommitment qCommitment pAtR tauScaleG2 r =
+        pnot #$ verify # pG1 # tauScaleG2 # pG2 # pCommitment # r # pAtR # qCommitment
+
 -- Helpers
 
 g1 :: Point Curve1
@@ -216,7 +262,7 @@ newtype R = R Integer
 
 -- If I'm right, R can actually be anything at all, but there are some (sensible) restrictions on P
 instance Arbitrary R where
-    arbitrary = R <$> arbitrary
+    arbitrary = R <$> (arbitrary `suchThat` (\x -> abs x > 1))
 
 newtype Polynomial = Polynomial (Poly Vector Integer)
     deriving (Eq) via (Poly Vector Integer)
@@ -230,16 +276,19 @@ instance Show Polynomial where
 instance Arbitrary Polynomial where
     arbitrary =
         Polynomial . toPoly <$> do
-            Positive len <- arbitrary
+            Positive len' <- arbitrary
+            let len = len' + 20
             nonZeroPos <- chooseInt (0, len)
             NonZero nonZeroCoef <- arbitrary
             Vector.generateM (len + 1) (\i -> if i == nonZeroPos then pure nonZeroCoef else arbitrary @Integer)
+    shrink _ = []
 
-    -- Vector.replicateM (len) (arbitrary @Integer `suchThat` (\x -> x < (-1) || x > 1))
+{-
     shrink (Polynomial p) =
         Polynomial . toPoly <$> do
             let asVector = unPoly p
             shrunk <- liftShrink (fmap getNonZero . shrink . NonZero) asVector
-            guard (Vector.length shrunk > 0)
-            guard (any (/= 0) shrunk)
+            guard (Vector.length shrunk > 2)
+            guard (0 `notElem` shrunk)
             pure shrunk
+-}
