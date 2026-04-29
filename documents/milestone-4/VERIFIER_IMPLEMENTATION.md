@@ -229,7 +229,7 @@ with regard to distributed consensus (even in the presence of adversaries), as
 well as techniques similar to [the multiplayer RNG][multiplayer-rng]. Thus, we
 assume that this problem has been solved.
 
-Lastly, the interactive description of the PLONK verification process does not
+Lastly, the interactive description of the KZG verification process does not
 lend itself well to an implementation on the blockchain, where this kind of
 interaction is costly. The main reason the interaction is required is that the
 choice of $r$ is adversarial relative the prover: effectively, the verifier
