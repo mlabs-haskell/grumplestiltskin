@@ -72,8 +72,8 @@ requirements:
 
 ### KZG over BLS12-381 preliminaries
 
-Our zero-knowledge scheme is KZG-style single polynomial open verification. In this 
-scheme, the information provers want to demonstrate knowledge of is represented as a
+The KZG single polynomial open verification is a primitive that is used to implement zero-knowledge schemes. 
+In these schemes, the information provers want to demonstrate knowledge of is represented as a
 [polynomial][polynomial] $P$, of degree $d$, with all coefficients being
 elements of a finite field. While seemingly restrictive, this is in fact sufficient to represent
 any data: given a binary string $B = b_0, b_1, \ldots b_k$, we can encode it as the
@@ -85,7 +85,7 @@ $$
 
 Furthermore, polynomials of this kind can also encode [circuits][plonk-circuit],
 which allows provers to demonstrate knowledge of computations. More sophisticated PLONK-style 
-scheme allow provers to demonstrate knowledge of multiple polynomials at once. We will
+schemes allow provers to demonstrate knowledge of multiple polynomials at once. We will
 not consider these here, as they do not change the core of the verification process itself.
 
 In order to be useful, a KZG scheme requires a pair of [elliptic curves][elliptic-curve] 
@@ -170,8 +170,9 @@ $$
 
 by the algebraic identities given previously. The prover then sends the
 commitment to $P$ to the verifier. In response, the verifier sends a _challenge_
-$k \in \mathbb{F}_{k}$. The prover then constructs a polynomial $Q$, which, with
-indeterminate $x$ is defined as
+$r \in \mathbb{F}$, where $r$ must not be freely chosen by the prover (in our prototype, 
+it can be assumed that $r$ is fixed public knowledge not chosen by the prover). 
+The prover then constructs a polynomial $Q$, which, withindeterminate $x$ is defined as
 
 $$
 Q(x) = \frac{P(x) - P(r)}{x - r}

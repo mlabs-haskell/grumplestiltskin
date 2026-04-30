@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 module Main (main) where
@@ -47,8 +48,8 @@ import Test.QuickCheck (
     chooseInt,
     counterexample,
     forAllShrink,
-    -- getNonZero,
-    -- liftShrink,
+    getNonZero,
+    liftShrink,
     suchThat,
  )
 import Test.QuickCheck.Instances ()
@@ -277,18 +278,23 @@ instance Arbitrary Polynomial where
     arbitrary =
         Polynomial . toPoly <$> do
             Positive len' <- arbitrary
-            let len = len' + 20
-            nonZeroPos <- chooseInt (0, len)
-            NonZero nonZeroCoef <- arbitrary
-            Vector.generateM (len + 1) (\i -> if i == nonZeroPos then pure nonZeroCoef else arbitrary @Integer)
-    shrink _ = []
-
-{-
+            let len = len' + 1
+            nonZeroPos1 <- chooseInt (0, len)
+            nonZeroPos2 <- chooseInt (0, len) `suchThat` (/= nonZeroPos1)
+            nz@(NonZero nonZeroCoef1) <- arbitrary
+            NonZero nonZeroCoef2 <- arbitrary `suchThat` (/= nz)
+            Vector.generateM
+                (len + 1)
+                ( \i ->
+                    if
+                        | i == nonZeroPos1 -> pure nonZeroCoef1
+                        | i == nonZeroPos2 -> pure nonZeroCoef2
+                        | otherwise -> arbitrary @Integer
+                )
     shrink (Polynomial p) =
         Polynomial . toPoly <$> do
             let asVector = unPoly p
             shrunk <- liftShrink (fmap getNonZero . shrink . NonZero) asVector
-            guard (Vector.length shrunk > 2)
-            guard (0 `notElem` shrunk)
+            guard (Vector.length shrunk > 1)
+            guard (Vector.length (Vector.filter (/= 0) shrunk) > 1)
             pure shrunk
--}
