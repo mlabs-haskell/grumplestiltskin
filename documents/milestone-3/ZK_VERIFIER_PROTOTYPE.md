@@ -1,31 +1,69 @@
-# ZK Verifier Prototype 
+# ZK verifier prototype and outcomes
 
 ## Introduction 
-We attempted to implement a BLS12-381 KZG proof verifier prototype using primitives which are parameterized by fields and curves, in the Plutarch eDSL for UPLC script generation, as required by Milestone 3. In order to implement a ZK proof verifier, we first had to design and implement representations of, and operations on, finite field extensions, which can be found in the  `src/Grumplestiltskin/Degree2` directory. These primitives can support other curves, but BLS was the target for our prototype. Because verification in a BLS12-381 context requires implementing a pairing function which accepts a point on the `G2` curve, and because the `G2` curve is a curve over a field extension, supporting operations over field extensions (and curves over field extensions) is a necessary first step towards implementing fully-realized onchain proof verification. 
 
-Unfortunately, we ran into intractable problems during this step that made it clear to us that a BLS verifier built on top of these primitives is not viable. The limitations we discovered in M2 proved even more limiting in the case of operations over second degree field extensions, such that even simple test cases (i.e. of the primitive operations, not of verification) approached or exceeded limits set but Cardano protocol parameters. The current state of UPLC, therefore, forces us into a dilemma: Representations of field extensions which lead to acceptable script sizes incur extreme CPU and memory costs, whereas representations that lead to acceptable CPU and memory costs produce script sizes which reach or exceed the limits even in artificially small and simple test cases.
+We attempted to implement a BLS12-381 KZG proof verifier prototype using 
+primitives which are parameterized by fields and curves, in the Plutarch eDSL 
+for UPLC script generation, as required by Milestone 3. In order to implement 
+a ZK proof verifier, we first had to design and implement representations of, 
+and operations on, [finite field extensions](https://en.wikipedia.org/wiki/Field_extension), 
+which can be found in the  `src/Grumplestiltskin/Degree2` directory. These primitives 
+can support other curves, but the BLS12-381 curves were the choice for our 
+prototype. As BLS12-381's `G2` curve is defined over a second-degree extension, 
+and requires a bilinear pairing function, supporting operations over finite field 
+extensions, and curves over these, is a necessary first step.
 
-We believe that our results demonstrate that no implementation could satisfy the performance requirements necessary for on-chain use, and that our failure here is the result of a true dilemma.
+Unfortunately, we found that the performance of any implementation is too low to
+be viable. These performance limitations are similar to those we found as part
+of Milestone 2 work (as documented in the [Milestone 2
+report](https://github.com/mlabs-haskell/grumplestiltskin/blob/master/documents/milestone-2/EC_IMPLEMENTATION.md#limitations-and-potential-improvements)), 
+but even more severe: even simple test cases (such as basic group operations 
+for curves) approached or exceeded the limits set by Cardano protocol
+parameters. Furthermore, there is no clear way to avoid these problems given the
+state of UPLC at the time of writing this report.
 
-Our aim in this report is to explain why field extensions are necessary for parametric proof verification, explain the the multiple ways we represented field extensions, provide evidence that none of our representations are feasible for onchain verification given current or foreseeable protocol parameters, and finally, to make the case that any projective representation - the only alternative to our affine approach here - can do no better (and will almost certainly do much worse).
+This report will explain the nature of the performance problems we encountered,
+demonstrate exactly how severe these issues are, and demonstrate that no
+alternative solution exists. As part of this, we will also describe our attempts
+to implement second-degree finite field extensions, and curves over these.
 
-## Goals and Priorities 
+## Goals and priorities 
 
-Our primary goal for the milestone was to implement a BLS12-381 KZG verifier prototype using parametric primitives. While we could have chosen other curves in principle, in practice BLS was the only sensible choice since UPLC primitives support that curve, which allows us to compare our results here with the "builtin" implementation we constructed for Milestone 4. 
+Our primary goal for Milestone 3 was to implement a BLS12-381 KZG verifier,
+using primitives defined in Grumplestiltskin, rather than the builtins onchain.
+This choice was made to mirror the Milestone 4 implementation, as this would
+give us both a correctness indicator and a performance benchmark.
 
-Because the G2 curve is a second degree extension of the G1 curve, and because a pairing function over these curves is an essential component of any verifier, implementing parametric primitives for second degree field extensions and curves over such extensions is a necessary first step towards implementing a verifier prototype. To that end, our initial goal and first priority was to implement parametric primitives for second degree field extensions. 
+A necessary part of this implementation would be support for second-degree
+finite field extensions: the `G2` BLS12-381 curve is a second-degree extension.
+Thus, our initial priority was supporting both second-degree field extensions,
+and elliptic curves over these.
 
-As indicated in the introduction, we ran into intractable performance problems when attempting to implement these primitives. While it would have been conceptually possible to build an extremely inefficient verifier on top of our primitives, doing so would have no purpose because our preliminary results clearly demonstrate a severe performance degradation in the primitive operations on small and simple test cases. 
+As indicated in the introduction, this rapidly proved unviable, in spite of our
+attempts to implement them in multiple ways. While we could theoretically have
+built an extremely inefficient verifier, it would have been unusable for any
+realistic test cases. Thus, we instead chose to describe what performance
+limitations we experienced, how we attempted (and failed) to overcome them, and
+why there is no viable alternative given the current state of UPLC.
 
-In the following sections, we will explain the various ways in which we attempted to represent second-degree field extensions, curves over those extensions, and primitive operations over both, and then provide evidence which demonstrates , with a high degree of certainty, that neither our implementation nor any other can yield a viable onchain implementation of second degree field extensions and operations over them. 
+## Implementation
 
-## Implementation of Second Degree Field Extensions 
+We will describe our implementation choices for both field extensions and curves
+over these. We defined multiple implementations to both try and find one that
+was sufficiently performant, and also to demonstrate which were better or worse
+relative others.
 
 ### Definitions 
 
-Throughout the remainder of the report we will employ several technical concepts which may not be familiar to most readers. Therefore, we will define them here: 
+We distinguish between _direct_ and _indirect_ representations of computations
+onchain. These, when 'executed', produce some result. A _direct_ representation
+encodes the computation as a standard data type; an _indirect_ representation
+instead encodes the computation in [continuation-passing style][cps]. This
+approach is analogous to the [Milestone 2 alternatives][m2-alts] we had
+considered previously.
 
-We distinguish between *direct* and *indirect* representations of _computations_ that, when run, produce a result. The *direct* representation encodes the computation as a straightforward datatype (a product or sum), whereas the *indirect* representation encodes the computation in continuation-passing style. An example makes the difference clear - these are the two representations of `PD2Intermediate`, which is a computation that returns a second degree field extension element when run: 
+To clarify the difference, consider the following two representations of
+computations producing an element of a second-degree field extension:
 
 ```haskell
 -- The direct representation, from GaloisDirect.hs
@@ -37,63 +75,166 @@ newtype PD2Intermediate (s :: S)
         (forall (r :: S -> Type). Term s (PNatural :--> PPositive :--> (PInteger :--> PInteger :--> r) :--> r))
 ```
 
-We will occasionally refer to the encoding style of the indirect representation as a *Boehm-Berarducci form*. The Boehm-Berarducci form encodes a datatype as a function. In the context of our work here, the primary benefit is that it should improve performance by fusing away intermediary computations. A thorough explanation of Boehm-Berarducci forms would be out of place here, however the reader can refer to [this paper](https://okmij.org/ftp/tagless-final/course/Boehm-Berarducci.html) which explains in great detail the construction, purpose, and benefits of Boehm-Berarducci forms. 
+We will occasionally refer to the indirect representation as a
+_Boehm-Berrarducci form_. This form encodes a (positive) [algebraic data
+type][adt] as a function that produces any result of the caller's choice. This
+is primarily a method of eliminating intermediate values, which is why we made
+use of it in our work here. For a full explanation of the Boehm-Berrarducci form
+and its consequences, please see [this paper][oleg-bb].
 
-We will often refer to the *Cardano protocol parameters*, which are configuration settings for the Cardano blockchain. For us, the most relevant parameters are:
-  - *exUnitsSteps*: A value which represents the maximum number of computational steps a script can perform before execution is halted. This does not correspond directly to CPU operations on hardware - it is a synthetic value that is based on a set of costing parameters for language constructs and builtin functions - but because it is analogous to CPU usage in other contexts, we will sometimes refer to it as the "CPU budget" or "CPU cost" to distinguish it from the other costs. 
-  - *exUnitsMem*: A value that represents the maximum amount of memory a script can consume. 
-  - *maxTxSize*: A value that represents the maximum size of a single transaction. On the Cardano blockchain, scripts must be attached to a transaction. In some protocol versions they may be referenced by subsequent transactions, but must be attached at least once. We will occasionally refer to this as the *script size limit*, even though the actual maximum size for a Plutus script is strictly (slightly) smaller than this, because the transaction must contain elements other than the script itself. For our purposes the difference is largely immaterial, for reasons which will become apparent shortly. 
-  
-We distinguish (generally) between *affine* and *projective* representations of curve points. An affine representation represents points as coordinate pairs in two dimensional space. Non-affine representations (of which there are several) represent points as sets of coordinates in three or more dimensions. All of the representations we implemented, whether direct or indirect, are affine representations. 
-  
+We will refer to several specific Cardano blockchain configuration settings
+throughout this report as the _Cardano protocol parameters_. Specifically, the
+following are of interest:
+
+* `exUnitSteps`: The maximum number of computational 'steps' that a
+  script can perform before execution is forced to halt. We will refer to this
+  as the _CPU budget_ or _CPU cost_ for brevity.
+* `exUnitsMem`: The maximum memory units a script can use during its
+  execution. We will refer to this as the _memory budget_ or the _memory cost_
+  for brevity.
+* `maxTxSize`: The maximum size of a single transaction. On the Cardano
+  blockchain, scripts must be attached to a transaction, though some versions
+  allow referencing a script from an earlier transaction. We will refer to this
+  as the _script size limit_, although technically, the realistic limit for a
+  single script is less than this.
+
+We note that the CPU budget and the memory budget are not true measurements of
+either execution time or memory use for a script. Rather, these are synthetic
+values, designed to allow measuring the costs of running a script using a
+uniform and deterministic method. For more details, please see [this
+overview][plutus-cost-model].
+
+We distinguish between two forms of representations of elliptic curve points. An _affine_
+representation is conceptually a point in two-dimensional space, while a
+_projective_ representation is a point in a higher-dimensional space. We
+specifically note that in the affine representation, we cannot represent the
+point at infinity directly, whereas in a projective representation, we can. All
+representations we implemented (and will describe) are affine representations:
+we will discuss the reasoning for our choice in subsequent sections.
+
 ### Types
 
-In our Milestone 2 work, we implemented datatypes and group operations over elliptic curves using two distinct representations: A direct (i.e. SOP-encoded) representation, and an indirect (i.e. Boehm-Berarducci form) representation. Group operations in M2 were defined over a type (`PECIntermediatePoint`) that represents an intermediate computation on points. See the [Milestone 2](https://github.com/mlabs-haskell/grumplestiltskin/blob/master/documents/milestone-2/EC_IMPLEMENTATION.md) report for details.
+In our work for Milestone 2, we implemented data types corresponding to the
+following:
 
-In our Milestone 3 work, we continued along this path when designing representations and operations over field extensions. However, since we are now dealing with elements of field extensions _and_ curve points, we must implement two different kinds of intermediate computations: 
+* A finite field element
+* A computation which, when run, produces a finite field element, in a direct
+  representation
+* An elliptic curve point over finite field elements
+* A computation which, when run, produces an elliptic curve point over finite
+  field elements, in a direct representation
 
-  - `PD2Intermediate`, which represents a computation that, when run, produces an element of a second degree field extension
-  - `PEC2Intermediate`, which represents a computation that, when run, produces a point on some elliptic curve
-  
-Each of these types can, in a manner following M2, be represented in a direct or indirect way. The indirect and direct representations of `PD2Intermediate` can be found, respectively, in the `Grumplestiltskin.Degree2.Galois` and `Grumplestiltskin.Degree2.GaloisDirect` modules.  
+While we had considered indirect representations, we found that there was no
+advantage even in theory: the intermediate values were not large enough. 
 
-Because `PEC2Intermediate` can itself be represented directly or indirectly, and because it must refer to `PD2Intermediate` results (which may be represented directly or indirectly), there are four possible variants of `PEC2Intermediate`: 
-  1. Direct `PEC2Intermediate` using direct `PD2Intermediate` (`DD`)
-  2. Direct `PEC2Intermediate` using indirect `PD2Intermediate` (`DI`)
-  3. Indirect `PEC2Intermediate` using direct `PD2Intermediate` (`ID`)
-  4. Indirect `PEC2Intermediate` using indirect `PD2Intermediate` (`II`)
-  
-These can be found, respectively, in the `EllipticCurveDD, EllipticCurveDI, EllipticCurveID, EllipticCurveII` modules in the `src/Grumplestiltskin/Degree2` directory. 
+For this Milestone, we would additionally require the following data types:
 
-The "result types" of the intermediate computations, `PD2Element` and `PEC2Point` (which is comprised of `PD2Element`s) have only one representation (the direct one), and can be found in `Degree2.Element` and `Degree2.AffinePoint` respectively, along with their Haskell-level counterparts. Because these types are not used for anything involving modifications, an indirect form would provide no tangible benefits.
+* An element of a second-degree finite field extension
+* A computation which, when run, produces an element of a second-degree finite
+  field extension
+* An elliptic curve point over second-degree finite field extension elements
+* A computation which, when run, produces an elliptic curve point over
+  second-degree finite field extension elements
+
+Initially, we attempted to directly extend Milestone 2 work by using direct
+representations for all the above. However, we found that this had unacceptably
+bad performance. Thus, we decided to attempt the use of indirect representations
+as well.
+
+As indirect representations would provide no benefits for types _not_
+representing computations, for second-degree field extension elements and
+elliptic curve points over these, we implemented only a direct type: these are,
+respectively `PD2Element` and `PEC2Point`. These can be found in the
+`Degree2.Element` and `Degree2.AffinePoint` modules respectively.
+
+For computations over these, we require two types conceptually:
+
+* `PD2Intermediate`, for second-degree field extension elements; and
+* `PEC2Intermediate`, for elliptic curves over these.
+
+Each of these types can have either a direct or indirect representation, which
+gives four possibilities:
+
+* Direct `PEC2Intermediate` using direct `PD2Intermediate` (`DD`)
+* Direct `PEC2Intermediate` using indirect `PD2Intermediate` (`DI`)
+* Indirect `PEC2Intermediate` using direct `PD2Intermediate` (`ID`)
+* Indirect `PEC2Intermediate` using indirect `PD2Intermediate` (`II`)
+
+These can be found, respectively, in the `EllipticCurveDD`, `EllipticCurveDI`,
+`EllipticCurveID` and `EllipticCurveII` modules in the
+`src/Grumplestiltskin/Degree2` directory. 
+
+For each of these representations, we also implemented the required group and
+field operations. Notably, this meant an additional auxiliary value is required
+(specifically, an [irreducible element][irreducible]) for field extensions and
+also elliptic curves over these. For indirect representations, we were able to
+use the Plutarch numerical hierarchy of type classes to implement this
+functionality. We could not do this for direct representations for similar
+reasons to the Milestone 2 implementation of elliptic curves, as these type
+class methods do not allow passing of auxiliary values. Thus, we implemented
+the same operations as regular functions.
+
+For clarity, we provide the following table of equivalent operations. Some
+operations use identical names regardless of representation.
+
+| **Operation**  | Direct function name | Indirect function name |
+|----------------|----------------------|------------------------|
+| Field addition | `#+`                 | `#+`                   |
+| Field multiplication | `pd2Times`     | `#*`                   |
+| Field additive inverse | `pnegate`    | `pnegate`              |
+| Field square           | `pd2Square`  | `pd2Square`            |
+| Field division         | `pd2Divide`  | `pd2Divide`            |
+| Field exponentiation | `pd2Pow`       | `pd2Pow`               |
+| Group addition | `pec2Add`            | `#+`                   |
+| Group doubling | `pec2Double`         | `pec2Double`           |
+| Group inverse  | `pec2Negate`         | `pnegate`              |
+| Group scaling  | `pec2Scale`          | `pscaleInteger`        |
+
+We note that, as the Plutarch numerical hierarchy has several additive scaling
+methods, `pscalePositive` and `pscaleNatural` were also implemented for the
+representations that allow them.
 
 ## Benchmarks 
 
-We implemented a benchmark suite to compare the performance tradeoffs between various ways we represented field extensions and their operations. Each benchmark test here implements a small computation over elliptic curves using the designated representation (e.g. `DI` means a direct `PEC2Intermediate` with an indirect `PD2Intermediate`, and so on). 
+We implemented a benchmark suite to compare performance tradeoffs between the
+different representation choices for second-degree finite field extensions and
+elliptic curves over these. The implementations of these benchmarks can be found
+in `test/extension-ec/Main.hs`, and the cached golden files noting their
+performance can be found in `goldens/extension-ec.bench.golden`. 
 
-The implementation of the benchmarks can be found in `test/extension-ec/Main.hs`, and the cached golden results can be found in `goldens/extension-ec.bench.golden`. There are other benchmarks and tests in our test directory, but only these are particularly pertinent for this report. Wherever possible, we use pre-evaluated terms to minimize the amount of onchain computation. 
+We separated the benchmarks into several distinct groups, all of which benchmark
+the same operation or procedure using different representations of second-degree
+finite field extensions (or curves over these). The key groups are as follows:
 
-The benchmarks can be conceptually divided into several distinct groups, which all benchmark the same operation or procedure using different representations (i.e. varying the direct/indirect representations of `PE2CIntermediate` and `PD2Intermediate`). While we implemented additional benchmarks groups, those necessary to make our case here are: 
-  - Addition 
-  - Negation 
-  - Scaling 
-  - Scale-add 
+* Addition
+* Negation
+* Scaling
+* Scale-add
 
-For reasons related to implementation details of the Plutarch eDSL, some operations are implemented as standalone functions while others are implemented as typeclass methods. We preferred the type class method implementation where possible, however it is not possible to implement instances of the relevant type classes using auxiliary data, which several representations require. Specifically, representations that use a direct `PEC2Intermediate` must make use of auxiliary data, so we cannot write a typeclass instance, and therefore must (e.g.) use a standalone `pec2Add` function instead of the typeclass method `#+` for addition. 
+The benchmarks in each group were implemented identically, with the only
+difference being the choice of direct or indirect representation (and the use of
+corresponding functions). Unfortunately, due to a quirk of the Plutarch golden
+testing framework, not all the results could be run with the same data: we will
+discuss the reasons for this shortly.
 
-A quirk of the testing framework mandates that we produce _UPLC scripts which do not exceed protocol limits_, i.e., which stay under the aforementioned CPU and memory limits. There is no conceptual need for this, as the CEK machine that powers UPLC evaluation is capable of running with different limits or none at all, but this would require modifying the Plutarch golden testing infrastructure to implement, so we did not do so. This is important for understanding the benchmarks, because in several places we were forced to reduce the magnitude of certain input values for particular tests in order to stay within those limits. Readers should pay careful attention to the explanatory comments before each table presenting the relevant benchmarks, since different entries may use different input values, and the results are not necessarily directly co-measurable. Clearly, representations which had to be scaled down significantly to fit within the limits even for simple test cases are unambiguously non-viable.
+To help demonstrate the efficiency (or rather, lack of efficiency) of each of
+these operations, we will make frequent reference to the CPU budget, the memory
+budget and the script size limit. The values for these, given by the current
+[genesis files](https://book.world.dev.cardano.org/env-mainnet.html), are as
+follows: 
 
-Finally, since we will refer below (where appropriate) to the percentage of the total budget (for CPU, memory, and script size) each benchmark consumes, it may be useful for readers to review those budgetary limits. We note in passing that the CPU and memory budgets are, at least to some extent, "synthetic", in that they are based on a cost model and not on actual hardware performance (i.e. the numbers do not necessarily correspond *directly* to any kind of hardware operations). Script size is denominated in bytes, and _does_ directly indicate the "physical" size of a script. All values were retrieved from [current genesis files](https://book.world.dev.cardano.org/env-mainnet.html).
-
-| CPU Limit | Memory Limit | Script Size Limit (Bytes) | 
+| **CPU limit** | **Memory limit** | **Script size limit (bytes)** | 
 |--- | --- | --- | 
 |10,000,000,000 |10,000,000 | 16,384 | 
 
-### Test Preliminaries
+Where appropriate, we indicate what percentage of these limits any given
+benchmark required.
 
-Our benchmark tests make use of a shared set of test values, which may be represented using different data types depending on the benchmark, but which originate from a fixed set of constants. Most importantly, we use the same set of constant points throughout the tests. 
+### Benchmark data
 
-The first point (`blsC1`) being added originates from: 
+Our benchmarks make use of a shared set of values, originating from a fixed set
+of constants. Specifically, we use two BLS12-381 G2 curve points. The first of
+these is defined on the basis of the following four constants:
 
 ```haskell
 validX1 :: Natural
@@ -112,141 +253,319 @@ blsC1 :: forall (s :: S). Term s PEC2Point
 blsC1 = evalTerm' NoTracing (pec2FromElems (pconstant . mkBLS validX1 $ validY1) (pconstant . mkBLS validX2 $ validY2))
 ```
 
-While the second point is produced by scaling `blsC1` by an integer scalar of `3`. The implementation of that scaling will look slightly different for each representation, but the `DD` case gives the general idea: 
+The second is produced by scaling `blsC1` by an integer scalar of `3`. As the
+implementation will appear differently based on which representation we are
+using, we provide only the `DD` example below:
 
 ```haskell
 blsC2DD :: forall (s :: S). Term s DD.PEC2Intermediate
 blsC2DD = evalTerm' NoTracing (DD.pec2ToIntermediate . DD.pec2FromIntermediate pblsOrder $ DD.pec2Scale pblsOrder validRSquared validCurveA blsC1DD 3)
 ```
 
-We use `evalTerm'`, which pre-evaluates a term, everywhere possible in order to isolate the budgetary cost of the operations being benchmarked. Here, we use it because `blsC2DD` is effectively a constant for testing purposes, and the cost of constructing it should not figure into the benchmark results. 
-
+In both cases, we make use of `evalTerm'` to ensure that the cost of
+constructing these points is not factored into the benchmarks.  
 
 ### Addition
 
-The first group of benchmarks concerns addition of points on a curve over the second degree extension of a field. Each of the tests consists of a simple addition of two such points, using a different combination of representations. Each of the tests consists in adding the same two points, which are represensented differently but constructed from the same source. 
+Our first group of benchmarks measures addition of elliptic curve points over
+second-degree finite field extensions. Each of the benchmarks measures the
+addition of the two point constants described previously, using different
+representations.
 
 The results were as follows:
 
-| Operation | Representation | CPU Cost (% Max Budget)  | Memory Cost (% Max Budget) | Script Size (% Max Budget) | Code 
+| **Operation** | **Representation** | **CPU cost (% of limit)**  | **Memory cost (% of limit)** | **Script size (% of limit)** | **Code** | 
 |---|---|---|---|---|---|
-| #+ | II | 100,291,545 (1%) | 104,792 (1%) | 2,547 (15.5%)| `blsC1II #+ blsC2II` |
-| #+ | ID | 48,214,005 (0.48%)  | 48,183 (0.5%) | 2,440 (14.9%) | `blsC1ID #+ blsC2ID` |
-| pec2Add | DD | 49,275,939 (0.49%)  | 51,431 (0.51%) | 3,332 (20.3%) | `DD.pec2Add pblsOrder validRSquared validCurveA blsC1DD blsC2DD` |
-| pec2Add | DI | 101,049,479 (1.01%)  | 106,140 (1.1%) | 3,093 (18.9%) | `DI.pec2Add pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI blsC2DI` |
+| `#+` | `II` | 100,291,545 (1%) | 104,792 (1%) | 2,547 (15.5%)| `blsC1II #+ blsC2II` |
+| `#+` | `ID` | 48,214,005 (0.48%)  | 48,183 (0.5%) | 2,440 (14.9%) | `blsC1ID #+ blsC2ID` |
+| `pec2Add` | `DD` | 49,275,939 (0.49%)  | 51,431 (0.51%) | 3,332 (20.3%) | `DD.pec2Add pblsOrder validRSquared validCurveA blsC1DD blsC2DD` |
+| `pec2Add` | `DI` | 101,049,479 (1.01%)  | 106,140 (1.1%) | 3,093 (18.9%) | `DI.pec2Add pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI blsC2DI` |
 
-While the CPU budget, memory budget, and script size usage is large for a single operation here, these tests were constructed with identical inputs, so the results in this benchmark group can be directly compared. 
+These benchmarks are directly comparable, as their inputs were identical. These
+results reveal a pattern which will occur across all the benchmarks: direct
+'inner' (that is, `ID` or `DD`) representations are much more efficient in terms
+of CPU and memory usage. In this case, this is almost a factor of two
+improvement. Direct 'outer' representations instead lead to noticeably larger
+script sizes. We also observe that the choice of direct or indirect 'outer'
+representation seems to make little difference in terms of CPU or memory cost.
 
-These results reveal a pattern which repeats itself throughout the tests: Direct "inner" (i.e. `ID/DD`) representations are more efficient in terms of CPU and memory usage by a factor of almost 2. Direct "outer" (i.e. `DD/DI`) representations lead to notably larger script sizes. Finally, the choice of directness "on the outside" does not seem to matter very much. 
+Overall, `DI` is the worst representation overall, while `ID` is
+the best. At the same time, script sizes are all surprisingly large, given how
+fundamental this operation is.
 
 ### Negation
 
-The second group of tests concerns negation. Again, we are forced to implement a mixture of typeclass methods (here, `pnegate`) and standalone functions (`pec2Negate`). 
+Our second group measures negation of elliptic curve points over second-degree
+finite field extensions. Each of the benchmarks specifically measures the
+negation of the `blsC1` point described previously, in the appropriate
+representation.
 
-Each of the tests in the group tests a simple negation of the `blsC1`, which is reused without modification. 
+The results were as follows:
 
-All of the tests are directly comparable since the relevant input values are the same. 
-
-The results were as follows: 
-
-| Operation | Representation | CPU Cost (% Max Budget)  | Memory Cost (% Max Budget) | Script Size (% Max Budget) | Code 
+| **Operation** | **Representation** | **CPU cost (% of limit)**  | **Memory cost (% of limit)** | **Script size (% of limit)** | **Code** | 
 |---|---|---|---|---|---|
-| pnegate | II | 2,202,412 (0.02%) | 11,538 (0.12%) | 556 (3.4%) | `pnegate # blsC1II` |
-| pnegate | ID | 1,978,412 (0.019%) | 10,138 (0.1%) | 544 (3.3%) | `pnegate # blsC1ID` | 
-| pec2Negate | DD | 2,198,108 (0.022%) | 10,462 (0.1%) | 666 (4%) | `DD.pec2Negate blsC1DD` | 
-| pec2Negate | DI | 2,486,108 (0.024%) | 12,262 (0.12%) | 904 (5.5%) | `DI.pec2Negate blsC1DI` | 
+| `pnegate` | `II` | 2,202,412 (0.02%) | 11,538 (0.12%) | 556 (3.4%) | `pnegate # blsC1II` |
+| `pnegate` | `ID` | 1,978,412 (0.019%) | 10,138 (0.1%) | 544 (3.3%) | `pnegate # blsC1ID` | 
+| `pec2Negate` | `DD` | 2,198,108 (0.022%) | 10,462 (0.1%) | 666 (4%) | `DD.pec2Negate blsC1DD` | 
+| `pec2Negate` | `DI` | 2,486,108 (0.024%) | 12,262 (0.12%) | 904 (5.5%) | `DI.pec2Negate blsC1DI` | 
 
-For negation operations, all representations yield a reasonably efficient CPU cost, but direct "outer" representations (i.e. `DD/DI`), as with the addition tests, lead to larger script sizes. 
+As previously, we observe that direct 'outer' representations lead to larger
+script sizes. However, the differences between the implementations are minor:
+all lead to reasonably efficient code. Overall, `DI` is once again the worst
+representation, while `ID` is the best.
 
 ### Scaling 
 
-The third group of benchmark tests concerns scaling. Again, we have a split between typeclass methods (`pscalePositive`) and standalone functions (`pec2Scale` with a positive argument). 
+Our third group concerns elliptic curve point scaling, which is effectively
+repeated addition. Initially, we attempted to scale the `blsC1` point (in the
+appropriate representation) by an integer scalar of `32`. However, only the `II`
+and `ID` representations could run and still fit into the limits described
+previously. This poses a problem with Plutarch's benchmarking framework, as it
+is designed to simulate the onchain limits exactly. Thus, these benchmarks
+couldn't even report a result. In order to produce values at all, we were forced
+to reduce the integer scalar for the `DD` and `DI` cases to `4`.
 
- We initially attempted to implement tests that scale the `blsC1` point by an integer scalar of `32`. This is indeed how the `II` and `ID` tests are implemented. However, even this relatively small input caused the `DI` and `DD` representations to exceed the CPU budget, so we were forced to reduce the integar scalar by a factor of 8, and the `DI/DD` tests are consequently run with an integer scalar of `4` as the argument. 
+This means the following results are not directly comparable. As resolving this
+problem would require modifying Plutarch itself, we did not attempt to do this,
+instead presenting the results as they are here.
 
-The use of different test inputs here means that the test results are not directly comparable. We note that an integer scalar of 32 is, in this context, still relatively small. Consequently, while the different input values preclude a meaningful direct comparison of the results (i.e. in terms of % of the CPU budget consumed), the results (especially the CPU cost) nevertheless clearly demonstrate that the direct representations are not suitable at all, and the indirect representations are only suitable for use on implausibly small scalar values. 
-
-These tests are a subset of all of the simple scaling tests we implemented. We will omit an explication of the further tests because the results are broadly consistent with the results here, and the results presented in this section independently suffice to support our argument. Curious readers can examine the full set of benchmark results located at `goldens/extension-ec.bench.golden`
-
-As a reminder, the `II/ID` and the `DI/DD` benchmarks do not use the same input values due to the previously mentioned performance degradation. As we have described, the Plutarch golden testing machinery used for these benchmarks cannot easily have its budgets 'expanded' for a direct comparison. Thus the actual numbers for the `DI` and `DD` cases would be far higher for identical cases than the results here indicate. 
-
-The results were as follows: 
-
-| Operation | Representation | CPU Cost (% Max Budget)  | Memory Cost (% Max Budget) | Script Size (% Max Budget) | Code 
+| **Operation** | **Representation** | **CPU cost (% of limit)**  | **Memory cost (% of limit)** | **Script size (% of limit)** | **Code** | 
 |---|---|---|---|---|---|
-|pscalePositive | II | 610,629,940 (6.1%) | 577,789 (5.8%) | 1,594 (9.7%) | `pscalePositive blsC1II (punsafeCoerce @_ @PInteger 32)` |
-|pscalePositive | ID | 321,189,456 (3.2%)| 290,273 (2.9%) | 1,471 (9%) | `pscalePositive blsC1ID (punsafeCoerce @_ @PInteger 32)` | 
-|pec2Scale | DD | 1,053,146,819 (10.5%) | 132,257 (1.3%) | 2,651 (16.2%) | `DD.pec2Scale pblsOrder validRSquared validCurveA blsC1DD 4` | 
-|pec2Scale | DI | 1,929,108,917 (19.3%)| 660,473 (6.6%) | 2,962 (18%) | `DI.pec2Scale pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI 4` | 
+|`pscaleInteger` | `II` | 610,966,110 (6.1%) | 579,291 (5.8%) | 1,925 (11.7%) | `pscaleInteger blsC1II 32` |
+|`pscaleInteger` | `ID` | 321,525,626 (3.2%)| 291,775 (2.9%) | 1,789 (10.9%) | `pscalePositive blsC1ID (punsafeCoerce @_ @PInteger 32)` | 
+|`pec2Scale` | `DD` | 1,053,146,819 (10.5%) | 132,257 (1.3%) | 2,651 (16.2%) | `DD.pec2Scale pblsOrder validRSquared validCurveA blsC1DD 4` | 
+|`pec2Scale` | `DI` | 1,929,108,917 (19.3%)| 660,473 (6.6%) | 2,962 (18%) | `DI.pec2Scale pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI 4` | 
 
-These tests clearly demonstrate the severe performance degradation in the `DI` and `DD` cases. Additionally, we observe that indirect "inner" representations (i.e. `DI/II`) always lead to worse memory usage. Finally, as before, direct "outers" lead to significantly larger script sizes. 
+We note that, as our scaling implementation (in all cases) uses [exponentiation
+by squaring][exponentiation-by-squaring], the `pec2Scale` benchmarks are likely
+to be at least three times worse than the figures given above for CPU and memory
+cost. However, even without this, we can see that `DD` and `DI` cases display
+severe performance degradation compared to the `II` and `ID` cases. Furthermore,
+we note that indirect 'inner' representations always lead to worse memory usage.
+Finally, as previously, direct 'outer' representations lead to significantly
+larger script sizes.
 
+At the same time, we can see that all of these operations require quite large
+portions of the script size budget: even the smallest is over 10%. Given that
+this is a single operation, intended to be part of a larger script, over a small
+constant, shows that it's not realistic for use on the chain. Furthermore, we
+cannot simultaneously obtain the best CPU cost and the best memory cost no
+matter our representation choices. This is different from the prior cases where
+a clear 'best' option exists.
 
 ### Scale-Add 
 
-Our final group of benchmarks concerns a compound operation that scales a point by some scalar and then performs an addition operation with another point. 
+Our final group concerns a compound operation that scales the `blsC1` point (in
+the appropriate representation) by the scalar `2`, then adds it to another copy
+of `blsC1`. 
 
-This `scale-add` operation is particularly useful for ascertaining the viability of an onchain representation because, as is noted [here](https://static1.squarespace.com/static/5fdbb09f31d71c1227082339/t/5ff394720493bd28278889c6/1609798774687/PairingsForBeginners.pdf) (pg 79), repeated applications of scaling and addition operations are central to the pairing function for verification over the BLS curves. While a full discussion of that pairing function - known as Miller's algorithm - and how we might implement it onchain is outside the scope of this report, it ought to suffice to note that any implementation will involve a large number of scale-then-add operations (exactly how many depends upon the size of the commitments being verified) used with values that are much larger than those in our tests. 
+This 'scale-add' operation was chosen for two reasons. Firstly, it illustrates
+the benefits of indirect representations (which we will discuss further in a
+later section). Secondly, it is useful for ascertaining the viability of an
+onchain implementation, as this combination of operations is central to the
+bilinear pairing for the BLS12-381 curves (as per [this source, page
+79][pairings-for-beginners]). We note that in practice, the number of such
+operations will depend on the commitment being verified, but any realistic case
+would require much more than one such operation, and the constants involved will
+be much larger than `2`.
 
-Again, we ran into limitations here that forced us to use an unreasonably small integer scalar lest we exceed the CPU budget. All of the tests consist in adding the `blsC1` point to itself scaled by an integer scalar of `2`. Larger integer scalars cause the benchmarks to fail due to exceeding the CPU budget. 
+We had to choose such a small integer to ensure benchmark comparability:
+demonstrating any benefit to indirect representation would be impossible
+otherwise. Any larger constant would cause the `DD` and `DI` benchmarks to fail
+to run, for reasons similar to those discussed for the scaling benchmarks given
+previously. Furthermore, even the `ID` and `II` benchmarks cannot run with
+constants larger than about `1000`.
 
-These results are directly comparable. Unlike the previous benchmark group, we chose the lowest scalar that allows the the `DD/DI` benchmarks here to executive. _Slightly_ higher scalar values may allow the `II/ID` benchmarks to execute without exceeding the limits, but the results nonetheless demonstrate the extremely high cost of our most efficient representation even using trivially small scalar values.  
+The results are as follows:
 
-Here are the results: 
-
-| Operation | Representation | CPU Cost (% Max Budget)  | Memory Cost (% Max Budget) | Script Size (% Max Budget) | Code 
+| **Operation** | **Representation** | **CPU cost (% of limit)**  | **Memory cost (% of limit)** | **Script size (% of limit)** | **Code** | 
 | --- | --- | --- | --- | --- | --- | 
-| scale-add | II | 205,141,864 (2.05%) | 223,648 (2.24%) | 3,414 (20.8%) | `blsC1II #+ pscaleInteger blsC1II 2` |
-| scale-add | ID | 99,850,088 (1%) | 110,316 (1.1%) | 3,184 (19.4%) | `blsC1ID #+ pscaleInteger blsC1ID 2` |
-| scale-add | DD | 579,644,274 (5.8%) | 120,400 (1.2%) | 5,634 (34.4%) | `DD.pec2Add pblsOrder validRSquared validCurveA blsC1DD (DD.pec2Scale pblsOrder validRSquared validCurveA blsC1DD 2)` | 
-| scale-add | DI | 1,127,817,205 (11.3%) | 513,753 (5.14%) | 5,909 (36%) | `DI.pec2Add pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI (DI.pec2Scale pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI 2)` | 
- 
-### Benchmark Results Discussion 
+| scale-add | `II` | 205,141,864 (2.05%) | 223,648 (2.24%) | 3,414 (20.8%) | `blsC1II #+ pscaleInteger blsC1II 2` |
+| scale-add | `ID` | 99,850,088 (1%) | 110,316 (1.1%) | 3,184 (19.4%) | `blsC1ID #+ pscaleInteger blsC1ID 2` |
+| scale-add | `DD` | 579,644,274 (5.8%) | 120,400 (1.2%) | 5,634 (34.4%) | `DD.pec2Add pblsOrder validRSquared validCurveA blsC1DD (DD.pec2Scale pblsOrder validRSquared validCurveA blsC1DD 2)` | 
+| scale-add | `DI` | 1,127,817,205 (11.3%) | 513,753 (5.14%) | 5,909 (36%) | `DI.pec2Add pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI (DI.pec2Scale pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI 2)` | 
 
-The benchmark results reveal a clear pattern: With the exception of the negation benchmarks, even our most efficient representation still falls considerably short of the CPU and script size requirements to fit on-chain. 
+We can immediately see the issue here: even at such small scales, these
+operations require between 20 and 30% of the entire script size limit. When
+combined with the observations of resource exhaustion with larger (but not
+large) constants, this clearly demonstrates the unviability of any of these
+choices in practice. Other observations are consistent with previous benchmarks.
 
- We observe that all of the benchmark results presented here are benchmarks of _simple_ computations, each of which may be performed dozens, hundreds, or thousands of times when a pairing function built upon them executes. A pairing function, of course, is one component of a fleshed out ZK proof verification system. While the details will depend somewhat on which scheme is implemented, a cursory look at the [prototype KZG verification function](https://github.com/mlabs-haskell/grumplestiltskin/blob/sean/m4-report/src/Grumplestiltskin/Verify.hs) implemented over BLS that we constructed for Milestone 4 reveals clearly the inadequacy of the representations for the task of verification: 
-  1. Prior to computing the pairing, we must perform two scaling operations, which scale by a value (referred to as `r` in our implementation) which, for the cryptographic integrity of verification to be preserved, must be impossible to distinguish from random noise. The overwhelming majority of secure choices for `r` will be *much** larger than 32, since `r` must be a (cryptographically secure) randomly chosen integer. Our most efficient representation (`ID`) is only capable of handling integer scalars of around 1000 or less before exceeding the script budget, and is therefore incapable of working with `r` values necessary for secure verification. This alone conclusively shows that even our efficient representation is unviable. 
-  2. The script size costs of every basic operation aside from negation are unrealistically high. Our addition tests benchmark simple additions of only two points, and the most efficient representation still uses nearly 15% of the total script budget. Technically speaking, the "script budget" is actually the budget for an entire _transaction_, so is lower than the numbers indicate. But even if we assume we can use the full budget, we must also have space for functions which select and validate inputs, convert between Plutus data encodings and more efficient representations for computational purposes, and so on. A "real" validator that implemented verification would of course require these additional bits of code _and_ other elliptic curve point operations, which (again aside from negation), are also extremely costly in terms of script budget. Therefore, even if we ignore the CPU budget limitations, it is extraordinarily unlikely that we could not fit a fully realized verifier into the script size budget, and it is not possible to implement verification in a validator. 
-  3. Even if we could fit simple examples onchain without exceeding either the CPU or script size budget, we cannot make use of a builtin pairing function like our Milestone 4 prototype does. As hinted at above, we would have to implement the pairing function (Miller's algorithm) using primitives that we have constructed and benchmarked here. There is no possibility that we could do this given the existing constraints. Even if such an implementation could fit into the onchain limits described previously, we would be forced to limit its use to extremely small commitments. This could never work with a fully-realized ZK proof system. Furthermore, not only must the commitments be small, the coefficients of the polynomials that represent the commitments must also be small, since we have to scale them. Therefore, even if we could fit an implementation of the pairing function onchain without exceeding script size and CPU budgets it could never lead to a viable ZK verification system. 
-  
-  
-Ultimately, our problems here result from the manner in which we _must_ represent the point at infinity in an affine representation of curve points. In particular, the core of our problem is that we are forced to represent curve points as a [_sum type_](https://en.wikipedia.org/wiki/Algebraic_data_type) in our intermediaries. While this problem is more obvious in the case of direct representations, it is present in a slightly different form for indirect representations as well. 
+### Discussion 
 
-The benchmarks clearly indicate that a direct representation of `PEC2Intermediate` is always worse than the indirect representation. We can see the reason for this if we look at the direct-direct `pec2Add` implementation. Each call to `pec2Add` requires many pattern matches: one for each `PEC2Intermediate` (to determine if we have the point at infinity), and in cases where neither argument is such, additional matches on the `PD2Intermediates` representing each `PEC2Intermediate`.' This greatly increases the execution cost of these operations. The situation with respect to script size is no better: the required pattern matches are not just computationally expensive, but also expensive in terms of script size. The script size problem is made even worse when we consider the need to explicitly apply all of the auxiliary values in every operation, which leads to comically large script sizes for simple, primitive operations. 
+The benchmarks reveal a clear pattern: with the exception of the negation
+operation, even the most efficient choices of representation still fall
+considerably short of the requirements needed to be practically usable onchain.
+This is particularly apparent for script sizes, but even when the CPU and memory
+costs are reasonable, we note that the benchmarks are for relatively simple
+computations. Any practical verifier would require much larger arguments, and
+many more computations, which would be intolerably resource-intensive. 
 
-With the _indirect_ representation, because we are working with a CPS encoding, we first have to _evaluate the arguments to determine whether one of them is the point at infinity_. Even if we avoid explicit pattern matching, we cannot get out of having to branch (i.e. here using `pif` instead of `pmatch`) depending on which "arm" of `PEC2Intermediate` we have, because the point at infinity operates as an additive semigroup identity. By the definition of an additive semigroup identity, we must return the other argument if we encounter the point at infinity. Subsequent computations cannot be aware of the results of previous computations that return a `PEC2Intermediate` without evaluating and branching, so we must _always_ evaluate the arguments and then branch. By this point it should not be surprising that this procedure entails significant costs, both in terms of CPU budget and script size, as reflected in the benchmarks. Readers may refer to [this section of the Milestone 2 report](https://github.com/mlabs-haskell/grumplestiltskin/blob/master/documents/milestone-2/EC_IMPLEMENTATION.md#proper-laziness) for a worked example of the cause of over-evaluation in this context. 
+To see this inefficiency more clearly, we can use the [prototype KZG
+verification function][m4-prototype] as a reference. Specifically, we note the
+following:
 
-A reader familiar with Haskell might recognize that over-evaluation in this context would not be a problem in Haskell itself, because Haskell has [call-by-need evaluation](https://en.wikipedia.org/wiki/Lazy_evaluation), and therefore results of prior computation can be _shared_, which would remove the need for unnecessary evaluations and lead to significantly better performance. UPLC, however, is a call-by-value language, and is subject to the same shortfalls as any other call-by-value language that lacks the resources to implement efficient laziness and sharing. We note that this problem - over-evaluation of previously computed results - is not a problem specific to UPLC but crops up more generally in strict languages without an "escape hatch" for call-by-need evaluation or the means to emulate it. Because the UPLC `delay` primitive does not implement real call-by-need evaluation (with sharing), UPLC simply does not provide the tools needed to implement an efficient indirect representation. 
+* Prior to computing the pairing, we must perform two scaling operations over the
+  value `r`. This value, designed to represent a 'challenge' from the verifier,
+  would need to be fairly random to be useful. This will mean that its magnitude
+  would be large. Given that our most efficient representation can only handle
+  constants around `1000`, this already suggests that this is not possible in
+  practice.
+* The script sizes of all basic operations is unrealistically high. For example,
+  even the most efficient addition of two points requires 15% of the script size
+  budget. We also note that the size budget is for a _transaction_, rather than
+  a single script, which means that any verifier would need to leave budget
+  available for other computations.
+* An implementation of the required bilinear pairing would be impossible in
+  practice, given the costs of even a single scale-and-add.
 
-Ultimately, the performance issues with both direct and indirect representations are due to the fact that _any_ affine representation of `PEC2Intermediate` (or anything analogous to it) must (at least morally) be a sum type, where one arm must be the point at infinity. The Boehm-Berarducci encoding used in the indirect representations may not look like a sum type, but we must still evaluate arguments to determine whether one of them is the point at infinity, so no matter what we do, we are stuck with poor performance. The indirect representation saves us from some excessive algorithmic costs (i.e. those incurred by repeated, explicit pattern matches), but we occur massive incidental costs due to the (inescapable) need to repeatedly evaluate. Future modifications to UPLC may make the indirect representation viable, but as things are now, it does not present enough of an improvement over the direction representation to support on-chain verifiction within the current protocol parameters (or any foreseeable future parameters, given the extreme script size and CPU costs demonstrated in our benchmarks). 
+These problems are not new or unexpected: we encountered similar issues even
+during the development of Milestone 2. However, in that context, the simpler
+data we were working with allowed some possibility of success. Over
+second-degree field extensions, these existing problems magnify significantly.
+Indeed, had we used the same strategy as we did for Milestone 2, our
+implementation would be even more unviable, as direct representations performed
+the worst in all of our benchmarks.
 
-## Alternatives Considered (and Rejected)
+## Causes of performance breakdown
 
-The affine (Euclidean) representation is not the only representation of elliptic curve points we might use. In addition to the affine representation, one could implement a naive projective representation or some development thereof (e.g. Jacobian, Chudnovsky-Jacobian, or Modified Jacobian) of elliptic curve points and field extensions. 
+Fundamentally, the poor performance demonstrated by our benchmarks stems from
+two specific issues. The first, exhibited quite strongly by the direct
+representation, is the large number of intermediate values that must be produced
+for almost all computations. The indirect representation, specifically chosen to
+address this issue, does do so, but in return, leads to a second issue:
+over-evaluation by necessity. Both of these performance issues were already on
+display for the code produced for Milestone 2. However, due to the larger data
+requirements of second-degree field extensions (and curves over these), these
+issues magnify significantly. 
 
-The fundamental difference between the affine representation and the projective alternatives is that the projective alternatives represent points in 3d space, and are, therefore, capable of representing the point at infinity using proper coordinates, without the need of a sum type or special constructor.
+At the heart of both problems is a quirk of the affine representation of curve
+points. As the point at infinity cannot be represented as a two-dimensional
+coordinate in this system, we must use a sum type as the representation. UPLC
+can represent sum types in two ways:
 
-Adopting a projective representation in some form would then appear to solve our problem by eliminating sum types. Unfortunately, this appearance is deceiving. 
+* Using the `Constr` data constructor of `Data` with different tags; and
+* Using the builtin SOP support.
 
-While a projective representation would save us from the incidental costs (e.g. excessive pattern matching or over-evaluation) that we cannot otherwise escape from, we would be forced incur significant _algorithmic_ costs due to the inherent inefficiency of group operations defined over a projective representation. Even in the projective representation, addition and multiplication of elements in a field extension require multiplication and squaring in the underlying field. As we noted in the Milestone 2 report, all non-affine representations have a significantly higher algorithmic cost than their affine equivalents: 
+Every time such a value is constructed, regardless of which of these
+representations we choose, we must pay a cost. If we have 'combination'
+operations, these costs 'add up', even though we never require the intermediate
+values produced this way. A good example of this is elliptic curve point
+scaling: as we use exponentiation by squaring, we _must_ produce (and pay for!)
+$\log(n)$ points, even though we only ever need the last one. Second-degree
+field extensions make this problem far worse. As we are operating on pairs of
+finite field elements, every operation over finite fields must construct more
+intermediate values (and larger intermediate values), which has a knock-on
+effect for elliptic curve operations over these. As an example, consider field
+multiplication:
 
-| Operation | Affine cost | Projective cost | Jacobian cost | Chudnovsky-Jacobian cost | Modified Jacobian cost |
-|---|---|---|---|---|---|
-| Addition of points | 5 | 14 | 16 | 14 | 18 |
-| Doubling of point | 5 | 12 | 10 | 11 | 8 |
+* For finite field elements, this is a single builtin integer multiplication;
+* For second-degree extensions, this is _five_ builtin integer multiplications,
+  and two builtin integer additions.
 
-We note that these operations in the underlying field (which are not improved by choosing a different representation of field extension elements) are themselves intrinsically costly, as our benchmarks in `ec.bench.golden` show. The table below is an excerpt of those results): 
+Furthermore, second-degree field extensions must be represented a composite type
+(essentially a pair), which means the costs of construction of intermediates
+also magnify relative regular finite field elements, which can be represented as
+builtin integers. All of this 'intermediate value pressure' combines to produce
+the results we see both in Milestone 2 and here.
 
-| Operation | CPU Cost | Memory Cost | Size | 
-| --- | --- | --- | --- | 
-| pecAdd | 4,997,325 | 10,861 | 710 | 
-| pecScale | 22,121,638 | 53,721 | 759 | 
-| pecInvert | 359,408 | 1,707 | 116 | 
-| pecDouble | 4,816,986 | 10,794 | 230 | 
+The only way to evade this is to use Boehm-Berrarducci encodings, which we chose
+as the indirect representation. This is based on the capability of
+Boehm-Berrarducci encodings to naturally 'fuse away' intermediate values: as any
+such encoding is just a function, we do not need to 'materialize' any values
+until the point at which we demand a result, which would be of a different type
+than whatever the encoding is representing. We can indeed see from our
+benchmarks that this is a worthwhile improvement in this case. This is in
+contrast to Milestone 2, where such a representation was considered, but
+ultimately deemed not to be worthwhile, as the intermediate values were much
+smaller and fewer in number.
 
-A quick glance at the benchmark results for operations in the underlying field makes it very clear that a non-affine representation of field extensions, even if it leads to a marginal improvement over our affine representation, cannot deliver the exponential performance improvements necessary to make on-chain verification viable. We can see from the benchmarks above that any non-affine representation of field extensions cannot deliver the performance improvements needed. The added costs of working in any projective representation would outweigh any advantages such representations would have in avoiding the issue of having to use sum types.
+At the same time, the indirect representation suffers from the same kind of
+issue we identified in Milestone 2: inherent over-evaluation. This stems from
+the same cause [identified previously][m2-alts], which is again caused by the
+use of sum types to represent affine curve points. Briefly, the issue stems from
+the nature of Boehm-Berrarducci encodings as _functions_: for sum types
+specifically, this means that a pattern match is an evaluation. For elliptic
+curve addition, we must first verify whether either argument is the point at
+infinity. Doing this _forces_ us to evaluate _both_ encodings, even if we don't
+need to. As described in Milestone 2, this is unavoidable, as UPLC has strict
+semantics, without any ability to cache already-evaluated results. This
+over-evaluation is _especially_ impactful on the performance of elliptic curve
+scaling, as we have to perform potentially many curve point additions using the
+same argument repeatedly. Our benchmarks clearly demonstrate this problem: even
+for small scalars, the costs become intolerable quickly.
 
-## Conclusion 
+Ultimately, we can see that within the limits placed on us by UPLC as it
+currently stands, we cannot avoid these issues while still making use of an
+affine representation for curve points. Any attempt to address one problem
+inherently produces the other: at best, we can only trade these problems _for_
+each other, not even _against_ each other. Thus, we are forced to conclude that
+any attempt to have curves over second-order finite field extensions simply
+isn't practical as it stands, thereby making any verifier requiring them
+unusable as well.
 
-While we are hopeful that future improvements to UPLC will allow us to achieve the goal we set for ourselves with this milestone, we believe that the data presented and our analysis of it conclusively demonstrates that we cannot achieve our goal here - and that no one else could do sufficiently better. We are fundamentally caught between the high incidental costs of the affine representation and the high algorithmic costs of all non-affine representations.
+## Alternatives considered
+
+A natural question from the prior discussion is whether we can avoid using
+affine encodings, and their inherent need for sum types. Indeed, various
+projective encodings are already in use for many implementations of elliptic
+curve operations, any of which are capable of representing the point at infinity
+directly. This would allow us to avoid the use of sum types altogether, which
+would potentially eliminate the over-evaluation problem of the indirect
+representation. 
+
+However, any projective representation, by necessity, increases the amount of
+work required to perform any operation on elliptic curves relative the affine
+representation, particularly in UPLC. This stems from a quirk of UPLC that (to
+our knowledge) exists in no other onchain language: finding a modular
+multiplicative inverse is a cheap operation. Projective encodings were motivated
+largely by the need to avoid modular multiplicative inverse-finding, as this is
+an expensive operation requiring the use of the [extended Euclidean
+algorithm][extended-euclid]. Avoiding this by replacing it with a fixed
+additional number of other operations is worthwhile in this case, but not in
+ours: we lose far more than we gain. This tradeoff, already considered in
+[Milestone 2][m2-alts], remains just as unviable as it was for our prior work.
+
+## Conclusion
+
+While our work from Milestone 2 that implemented elliptic curves over finite
+field elements was promising, any attempt we could make to extend it to
+second-degree field extensions runs into intractable performance issues. These
+issues, already identified as part of our Milestone 2 work, hit even harder
+here: all operations cost more, all intermediate values are larger, and all
+benchmarks are thus correspondingly worse. Thus, any attempt to implement a
+verifier are doomed to failure and impracticality, even in the best possible
+choice of implementation.
+
+Furthermore, these problems are unavoidable due to the limited capabilities of
+UPLC that we are given to work with. No change of representation, or clever
+implementation strategy, will eliminate the problems for performance that we
+have observed and demonstrated through our benchmarks. These are not limitations
+in our implementational capabilities, or Plutarch: they stem from UPLC itself,
+and the specific set of tools it gives us. Without change to UPLC, these
+performance issues _must_ exist. Thus, as it stands, implementing the goal of
+this Milestone, or indeed, the remainder of the Grumplestiltskin project, is not
+possible.
+
+Lastly, these problems are not only inherent to UPLC, they are also unique to
+it. The techniques that we had to employ, both for this Milestone and Milestone
+2, are unusual by the standards of onchain languages (or indeed, programming
+languages in general). This does not stem from UPLC's functional nature, nor
+from its constrained budgets _inherently_: they are implementational choices
+specific to it, shared by no other language we know of. This means that the
+performance problems we have identified are not unique to Grumplestiltskin, but
+_must_ affect other work that has similar needs. We believe this extends to all
+code of a cryptographical nature, but likely far beyond that as well. Thus,
+addressing the root causes of these performance problems is necessary, but
+cannot be done within the scope of this project.
+
+[cps]: https://en.wikipedia.org/wiki/Continuation-passing_style
+[m2-alts]: https://github.com/mlabs-haskell/grumplestiltskin/blob/master/documents/milestone-2/EC_IMPLEMENTATION.md#representation-of-elliptic-curve-points
+[adt]: https://en.wikipedia.org/wiki/Algebraic_data_type
+[oleg-bb]: https://okmij.org/ftp/tagless-final/course/Boehm-Berarducci.html
+[plutus-cost-model]: https://github.com/IntersectMBO/plutus/blob/master/doc/cost-model-overview/cost-model-overview.pdf
+[irreducible]: https://en.wikipedia.org/wiki/Irreducible_element
+[exponentiation-by-squaring]: https://en.wikipedia.org/wiki/Exponentiation_by_squaring
+[pairings-for-beginners]: https://static1.squarespace.com/static/5fdbb09f31d71c1227082339/t/5ff394720493bd28278889c6/1609798774687/PairingsForBeginners.pdf
+[m4-prototype]: https://github.com/mlabs-haskell/grumplestiltskin/blob/sean/m4-report/src/Grumplestiltskin/Verify.hs
+[extended-euclid]: https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm
