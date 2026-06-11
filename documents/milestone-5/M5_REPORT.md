@@ -268,9 +268,9 @@ The [MLabs Better Arrays proposal][BETTER_ARRAYS] can be understood as proposing
 It is important to be explicit that these additions to UPLC are not, on their own, an implementation of defunctionalized push arrays. As we state in our proposal, these builtins are intended for "internal" use by compilers of UPLC frontend languages. Should that proposal be funded, part of our work will be to modify the compilers for existing frontend languages, so that frontend languages only expose a safe interface which is then transformed into calls to these functions in a code transformation or code generation pass. These additions to UPLC, however, suffice for the implementation of arrays in a frontend language without directly exposing unsafe operations to users. While the exact shape of the frontend array API will require some research and experimentation, the better arrays proposal will give us access to the same low-level tools that libraries like `massiv` make use of to implement efficient arrays in a functional setting. 
 
 
-[^1] Chris Okasaki, _Purely Functional Data Structures_, p.2
+[^1]: Chris Okasaki, _Purely Functional Data Structures_, p.2
 
-[^2] Specifically an indirect "on the outside", i.e. `ID`
+[^2]: Specifically an indirect "on the outside", i.e. `ID`
 
 [M3]: https://github.com/mlabs-haskell/grumplestiltskin/blob/milestone-3/documents/milestone-3/ZK_VERIFIER_PROTOTYPE.md
 [SOLIDITY]: https://github.com/witnet/elliptic-curve-solidity/blob/master/contracts/EllipticCurve.sol#L364C1-L408C1
