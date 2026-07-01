@@ -74,6 +74,7 @@ library
     Grumplestiltskin.Degree2.EllipticCurveII
     Grumplestiltskin.Degree2.Galois
     Grumplestiltskin.Degree2.GaloisDirect
+    Grumplestiltskin.Verify
 
   build-depends:
     , generics-sop
