@@ -1,0 +1,26 @@
+pd2Zero {"exBudgetCPU":48100,"exBudgetMemory":400,"scriptSizeBytes":11}
+pd2One {"exBudgetCPU":48100,"exBudgetMemory":400,"scriptSizeBytes":11}
+plus, indirect {"exBudgetCPU":2728684,"exBudgetMemory":9030,"scriptSizeBytes":415}
+plus, direct {"exBudgetCPU":1492518,"exBudgetMemory":5344,"scriptSizeBytes":494}
+pscalePositive, indirect {"exBudgetCPU":1316188,"exBudgetMemory":5026,"scriptSizeBytes":216}
+pscalePositive, direct {"exBudgetCPU":1316188,"exBudgetMemory":5026,"scriptSizeBytes":219}
+pscaleNatural, indirect {"exBudgetCPU":1316188,"exBudgetMemory":5026,"scriptSizeBytes":216}
+pscaleNatural, direct {"exBudgetCPU":1316188,"exBudgetMemory":5026,"scriptSizeBytes":219}
+pscaleInteger positive, indirect {"exBudgetCPU":1316188,"exBudgetMemory":5026,"scriptSizeBytes":216}
+pscaleInteger positive, direct {"exBudgetCPU":1316188,"exBudgetMemory":5026,"scriptSizeBytes":219}
+pscaleInteger negative, indirect {"exBudgetCPU":1790604,"exBudgetMemory":6730,"scriptSizeBytes":228}
+pscaleInteger negative, direct {"exBudgetCPU":1790604,"exBudgetMemory":6730,"scriptSizeBytes":231}
+ppowPositive, indirect {"exBudgetCPU":269730064,"exBudgetMemory":61846,"scriptSizeBytes":489}
+ppowPositive, direct {"exBudgetCPU":270471442,"exBudgetMemory":65250,"scriptSizeBytes":699}
+ppowNatural, indirect {"exBudgetCPU":269910397,"exBudgetMemory":62647,"scriptSizeBytes":507}
+ppowNatural, direct {"exBudgetCPU":270471442,"exBudgetMemory":65250,"scriptSizeBytes":699}
+pd2Pow positive, indirect {"exBudgetCPU":270311442,"exBudgetMemory":64250,"scriptSizeBytes":943}
+pd2Pow positive, direct {"exBudgetCPU":270471442,"exBudgetMemory":65250,"scriptSizeBytes":699}
+pd2Pow negative, indirect {"exBudgetCPU":686978206,"exBudgetMemory":79405,"scriptSizeBytes":950}
+pd2Pow negative, direct {"exBudgetCPU":687335414,"exBudgetMemory":81007,"scriptSizeBytes":707}
+pd2Square, indirect {"exBudgetCPU":2098508,"exBudgetMemory":6398,"scriptSizeBytes":284}
+pd2Square, direct {"exBudgetCPU":2098508,"exBudgetMemory":6398,"scriptSizeBytes":287}
+pd2Divide, indirect {"exBudgetCPU":10212125,"exBudgetMemory":14024,"scriptSizeBytes":627}
+pd2Divide, direct {"exBudgetCPU":9541509,"exBudgetMemory":11110,"scriptSizeBytes":499}
+sum of squares, indirect {"exBudgetCPU":4539466,"exBudgetMemory":15030,"scriptSizeBytes":632}
+sum of squares, direct {"exBudgetCPU":3964850,"exBudgetMemory":12716,"scriptSizeBytes":513}

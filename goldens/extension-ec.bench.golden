@@ -1,0 +1,25 @@
+pec2OnCurve {"exBudgetCPU":11382843,"exBudgetMemory":40068,"scriptSizeBytes":2005}
+#+ (II) {"exBudgetCPU":100291545,"exBudgetMemory":104792,"scriptSizeBytes":2547}
+#+ (ID) {"exBudgetCPU":48214005,"exBudgetMemory":48183,"scriptSizeBytes":2440}
+pec2Add (DD) {"exBudgetCPU":49275939,"exBudgetMemory":51431,"scriptSizeBytes":3332}
+pec2Add (DI) {"exBudgetCPU":101049479,"exBudgetMemory":106140,"scriptSizeBytes":3093}
+pnegate (II) {"exBudgetCPU":2202412,"exBudgetMemory":11538,"scriptSizeBytes":556}
+pnegate (ID) {"exBudgetCPU":1978412,"exBudgetMemory":10138,"scriptSizeBytes":544}
+pec2Negate (DD) {"exBudgetCPU":2198108,"exBudgetMemory":10462,"scriptSizeBytes":666}
+pec2Negate (DI) {"exBudgetCPU":2486108,"exBudgetMemory":12262,"scriptSizeBytes":904}
+pscalePositive (II) {"exBudgetCPU":610629940,"exBudgetMemory":577789,"scriptSizeBytes":1594}
+pscalePositive (ID) {"exBudgetCPU":321189456,"exBudgetMemory":290273,"scriptSizeBytes":1471}
+pscaleNatural (II) {"exBudgetCPU":610778273,"exBudgetMemory":578390,"scriptSizeBytes":1607}
+pscaleNatural (ID) {"exBudgetCPU":321337789,"exBudgetMemory":290874,"scriptSizeBytes":1483}
+pscaleInteger positive (II) {"exBudgetCPU":610966110,"exBudgetMemory":579291,"scriptSizeBytes":1925}
+pscaleInteger positive (ID) {"exBudgetCPU":321525626,"exBudgetMemory":291775,"scriptSizeBytes":1789}
+pec2Scale positive (DD, 8 times smaller) {"exBudgetCPU":1053146819,"exBudgetMemory":132257,"scriptSizeBytes":2651}
+pec2Scale positive (DI, 8 times smaller) {"exBudgetCPU":1929108917,"exBudgetMemory":660473,"scriptSizeBytes":2962}
+pscaleInteger negative (II) {"exBudgetCPU":613326420,"exBudgetMemory":589145,"scriptSizeBytes":1927}
+pscaleInteger negative (ID) {"exBudgetCPU":321525626,"exBudgetMemory":291775,"scriptSizeBytes":1789}
+pec2Scale negative (DD, 8 times smaller) {"exBudgetCPU":1055626007,"exBudgetMemory":140626,"scriptSizeBytes":2661}
+pec2Scale negative (DI, 8 times smaller) {"exBudgetCPU":1931620105,"exBudgetMemory":669042,"scriptSizeBytes":2972}
+scale-add (II) {"exBudgetCPU":205141864,"exBudgetMemory":223648,"scriptSizeBytes":3414}
+scale-add (ID) {"exBudgetCPU":99850088,"exBudgetMemory":110316,"scriptSizeBytes":3184}
+scale-add (DD) {"exBudgetCPU":579644274,"exBudgetMemory":120400,"scriptSizeBytes":5634}
+scale-add (DI) {"exBudgetCPU":1127817205,"exBudgetMemory":513753,"scriptSizeBytes":5909}

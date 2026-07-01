@@ -1,0 +1,522 @@
+{-# LANGUAGE ImpredicativeTypes #-}
+
+module Main (main) where
+
+import Data.Bifunctor (bimap)
+import Data.Kind (Type)
+import Data.Proxy (Proxy (Proxy))
+import Data.Vector.Sized qualified as Vector
+import GHC.IO.Encoding (setLocaleEncoding, utf8)
+import GenCurve (
+    GF11Elem2 (GF11Elem2),
+    GenCurvePoints (GenCurvePoints),
+    GenOffCurve (GenOffCurve),
+    GenOnCurve (GenOnCurve),
+ )
+import Grumplestiltskin.Degree2.AffinePoint (
+    PEC2Point,
+    pec2FromElems,
+    pec2OnCurve,
+ )
+import Grumplestiltskin.Degree2.Element (
+    D2Element,
+    PD2Element,
+    mkD2Element,
+    pd2Zero,
+ )
+import Grumplestiltskin.Degree2.EllipticCurveDD qualified as DD
+import Grumplestiltskin.Degree2.EllipticCurveDI qualified as DI
+import Grumplestiltskin.Degree2.EllipticCurveID qualified as ID
+import Grumplestiltskin.Degree2.EllipticCurveII qualified as II
+import Numeric.Natural (Natural)
+import Plutarch.Evaluate (evalTerm')
+import Plutarch.Internal.Term (Config (NoTracing))
+import Plutarch.Prelude (
+    PBool,
+    PInteger,
+    PNatural,
+    PPositive,
+    S,
+    Term,
+    pcon,
+    pconstant,
+    phoistAcyclic,
+    plam,
+    plet,
+    plift,
+    pmod,
+    pnegate,
+    pnot,
+    pscaleInteger,
+    pscaleNatural,
+    pscalePositive,
+    pupcast,
+    pzero,
+    (#),
+    (#$),
+    (#+),
+    (#-),
+    (:-->),
+ )
+import Plutarch.Test.Golden (goldenEval, plutarchGolden)
+import Plutarch.Test.Utils (precompileTerm)
+import Plutarch.Unsafe (punsafeCoerce)
+import Test.QuickCheck (
+    Property,
+    arbitrary,
+    counterexample,
+    forAll,
+    forAllShrinkShow,
+    shrink,
+    (===),
+ )
+import Test.Tasty (adjustOption, defaultMain, testGroup)
+import Test.Tasty.QuickCheck (QuickCheckTests, testProperty)
+
+main :: IO ()
+main = do
+    -- Pre-emptively avoid locale encoding issues
+    setLocaleEncoding utf8
+    defaultMain . testGroup "EC over second-degree finite field extensions" $
+        [ adjustOption moreTests $
+            testGroup
+                "Case 1: properties (II)"
+                [ testProperty "#+ associates" propAssocAddII
+                , testProperty "x #+ pzero = pzero #+ x = x" propZeroAddII
+                , testProperty "pec2Double x = x #+ x" propDoubleAddII
+                , testProperty "x #- x = pzero" propInvAddII
+                ]
+        , adjustOption moreTests $
+            testGroup
+                "Case 2: properties (DD)"
+                [ testProperty "pec2Add associates" propAssocAddDD
+                , testProperty "pec2Add x PEC2InfinityI = pec2Add PEC2InfinityI x = x" propZeroAddDD
+                , testProperty "pec2Double x = pec2Add x x" propDoubleAddDD
+                , testProperty "pec2Add x (pec2Negate x) = PEC2InfinityI" propInvAddDD
+                ]
+        , adjustOption moreTests $
+            testGroup
+                "Case 3: properties (ID)"
+                [ testProperty "#+ associates" propAssocAddID
+                , testProperty "x #+ pzero = pzero #+ x = x" propZeroAddID
+                , testProperty "pec2Double x = x #+ x" propDoubleAddID
+                , testProperty "x #- x = pzero" propInvAddID
+                ]
+        , adjustOption moreTests $
+            testGroup
+                "Case 4: properties (DI)"
+                [ testProperty "pec2Add associates" propAssocAddDI
+                , testProperty "pec2Add x PEC2InfinityI = pec2Add PEC2InfinityI x = x" propZeroAddDI
+                , testProperty "pec2Double x = pec2Add x x" propDoubleAddDI
+                , testProperty "pec2Add x (pec2Negate x) = PEC2InfinityI" propInvAddDI
+                ]
+        , adjustOption lotsMoreTests $
+            testGroup
+                "Case 4: whole curve"
+                [ testProperty "pecOnCurve when on" propOnCurve
+                , testProperty "pecOnCurve when off" propOffCurve
+                ]
+        , plutarchGolden
+            "Case 5: goldens"
+            "extension-ec"
+            [ goldenEval "pec2OnCurve" (pec2OnCurve pblsOrder validRSquared validCurveA validCurveB blsC1)
+            , goldenEval "#+ (II)" (evalCurveII # (blsC1II #+ blsC2II))
+            , goldenEval "#+ (ID)" (evalCurveID # (blsC1ID #+ blsC2ID))
+            , goldenEval "pec2Add (DD)" (evalCurveDD # DD.pec2Add pblsOrder validRSquared validCurveA blsC1DD blsC2DD)
+            , goldenEval "pec2Add (DI)" (evalCurveDI # DI.pec2Add pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI blsC2DI)
+            , goldenEval "pnegate (II)" (evalCurveII #$ pnegate # blsC1II)
+            , goldenEval "pnegate (ID)" (evalCurveID #$ pnegate # blsC1ID)
+            , goldenEval "pec2Negate (DD)" (evalCurveDD # DD.pec2Negate blsC1DD)
+            , goldenEval "pec2Negate (DI)" (evalCurveDI # DI.pec2Negate blsC1DI)
+            , goldenEval "pscalePositive (II)" (evalCurveII # pscalePositive blsC1II (punsafeCoerce @_ @PInteger 32))
+            , goldenEval "pscalePositive (ID)" (evalCurveID # pscalePositive blsC1ID (punsafeCoerce @_ @PInteger 32))
+            , goldenEval "pscaleNatural (II)" (evalCurveII # pscaleNatural blsC1II (punsafeCoerce @_ @PInteger 32))
+            , goldenEval "pscaleNatural (ID)" (evalCurveID # pscaleNatural blsC1ID (punsafeCoerce @_ @PInteger 32))
+            , goldenEval "pscaleInteger positive (II)" (evalCurveII # pscaleInteger blsC1II 32)
+            , goldenEval "pscaleInteger positive (ID)" (evalCurveID # pscaleInteger blsC1ID 32)
+            , -- Any scalar larger than this exceeds the budget for exunits
+              goldenEval "pec2Scale positive (DD, 8 times smaller)" (evalCurveDD # DD.pec2Scale pblsOrder validRSquared validCurveA blsC1DD 4)
+            , goldenEval "pec2Scale positive (DI, 8 times smaller)" (evalCurveDI # DI.pec2Scale pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI 4)
+            , goldenEval "pscaleInteger negative (II)" (evalCurveII # pscaleInteger blsC1II (-32))
+            , goldenEval "pscaleInteger negative (ID)" (evalCurveID # pscaleInteger blsC1ID 32)
+            , -- Any scalar larger than this exceeds the budget for exunits
+              goldenEval "pec2Scale negative (DD, 8 times smaller)" (evalCurveDD # DD.pec2Scale pblsOrder validRSquared validCurveA blsC1DD (-4))
+            , goldenEval "pec2Scale negative (DI, 8 times smaller)" (evalCurveDI # DI.pec2Scale pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI (-4))
+            , goldenEval "scale-add (II)" (evalCurveII # (blsC1II #+ pscaleInteger blsC1II 2))
+            , goldenEval "scale-add (ID)" (evalCurveID # (blsC1ID #+ pscaleInteger blsC1ID 2))
+            , -- Any scalar larger than this exceeds the budget for exunits
+              goldenEval "scale-add (DD)" (evalCurveDD # DD.pec2Add pblsOrder validRSquared validCurveA blsC1DD (DD.pec2Scale pblsOrder validRSquared validCurveA blsC1DD 2))
+            , goldenEval "scale-add (DI)" (evalCurveDI # DI.pec2Add pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI (DI.pec2Scale pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI 2))
+            ]
+        ]
+  where
+    -- Note (Koz, 05/03/2025): By default, QuickCheck only runs 100 tests, which
+    -- is far too few to be useful. Thus, we increase the count.
+    moreTests :: QuickCheckTests -> QuickCheckTests
+    moreTests = max 1_000
+    lotsMoreTests :: QuickCheckTests -> QuickCheckTests
+    lotsMoreTests = max 10_000
+    evalCurveII :: forall (s :: S). Term s (II.PEC2Intermediate :--> PEC2Point)
+    evalCurveII = phoistAcyclic $ plam $ II.pec2FromIntermediate pblsOrder validRSquared validCurveA
+    evalCurveID :: forall (s :: S). Term s (ID.PEC2Intermediate :--> PEC2Point)
+    evalCurveID = phoistAcyclic $ plam $ ID.pec2FromIntermediate pblsOrder validRSquared validCurveA
+    evalCurveDD :: forall (s :: S). Term s (DD.PEC2Intermediate :--> PEC2Point)
+    evalCurveDD = phoistAcyclic $ plam $ DD.pec2FromIntermediate pblsOrder
+    evalCurveDI :: forall (s :: S). Term s (DI.PEC2Intermediate :--> PEC2Point)
+    evalCurveDI = phoistAcyclic $ plam $ DI.pec2FromIntermediate pblsOrder (punsafeCoerce validRSquared)
+
+-- Properties
+
+propOnCurve :: Property
+propOnCurve = forAll arbitrary $ \(GenOnCurve x y) ->
+    let xR = toD2 x
+        xI = toD2 y
+     in plift (precompileTerm (plam go) # pconstant xR # pconstant xI)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PBool
+    go x y =
+        let z = pec2FromElems x y
+         in pec2OnCurve onCurveOrder onCurveIrred onCurveA onCurveB z
+
+propOffCurve :: Property
+propOffCurve = forAll arbitrary $ \(GenOffCurve x y) ->
+    let xR = toD2 x
+        xI = toD2 y
+     in plift (precompileTerm (plam go) # pconstant xR # pconstant xI)
+  where
+    go ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PBool
+    go x y =
+        let z = pec2FromElems x y
+         in pnot # pec2OnCurve onCurveOrder onCurveIrred onCurveA onCurveB z
+
+propInvAddII :: Property
+propInvAddII = propInvAdd II.pec2ToIntermediate toPEC2II (\_ _ _ x y -> x #- y) pzero
+
+propInvAddID :: Property
+propInvAddID = propInvAdd ID.pec2ToIntermediate toPEC2ID (\_ _ _ x y -> x #- y) pzero
+
+propInvAddDD :: Property
+propInvAddDD = propInvAdd DD.pec2ToIntermediate toPEC2DD (\fm rs ca x y -> DD.pec2Add fm rs ca x (DD.pec2Negate y)) pec2ZeroDD
+
+propInvAddDI :: Property
+propInvAddDI = propInvAdd DI.pec2ToIntermediate toPEC2DI (\fm rs ca x y -> DI.pec2Add fm (punsafeCoerce rs) ca x (DI.pec2Negate y)) pec2ZeroDI
+
+propZeroAddII :: Property
+propZeroAddII = propZeroAdd II.pec2ToIntermediate toPEC2II (\_ _ _ x y -> x #+ y) pzero
+
+propZeroAddID :: Property
+propZeroAddID = propZeroAdd ID.pec2ToIntermediate toPEC2ID (\_ _ _ x y -> x #+ y) pzero
+
+propZeroAddDD :: Property
+propZeroAddDD = propZeroAdd DD.pec2ToIntermediate toPEC2DD DD.pec2Add pec2ZeroDD
+
+propZeroAddDI :: Property
+propZeroAddDI = propZeroAdd DI.pec2ToIntermediate toPEC2DI (\fm rs ca x y -> DI.pec2Add fm (punsafeCoerce rs) ca x y) pec2ZeroDI
+
+propDoubleAddII :: Property
+propDoubleAddII = propDoubleAdd II.pec2ToIntermediate toPEC2II (\_ _ _ x y -> x #+ y) (\_ _ _ x -> II.pec2Double x)
+
+propDoubleAddID :: Property
+propDoubleAddID = propDoubleAdd ID.pec2ToIntermediate toPEC2ID (\_ _ _ x y -> x #+ y) (\_ _ _ x -> ID.pec2Double x)
+
+propDoubleAddDD :: Property
+propDoubleAddDD = propDoubleAdd DD.pec2ToIntermediate toPEC2DD DD.pec2Add DD.pec2Double
+
+propDoubleAddDI :: Property
+propDoubleAddDI = propDoubleAdd DI.pec2ToIntermediate toPEC2DI (\fm rs ca x y -> DI.pec2Add fm (punsafeCoerce rs) ca x y) (\fm rs ca x -> DI.pec2Double fm (punsafeCoerce rs) ca x)
+
+propAssocAddII :: Property
+propAssocAddII = propAssocAdd II.pec2ToIntermediate toPEC2II (\_ _ _ x y -> x #+ y)
+
+propAssocAddID :: Property
+propAssocAddID = propAssocAdd ID.pec2ToIntermediate toPEC2ID (\_ _ _ x y -> x #+ y)
+
+propAssocAddDD :: Property
+propAssocAddDD = propAssocAdd DD.pec2ToIntermediate toPEC2DD DD.pec2Add
+
+propAssocAddDI :: Property
+propAssocAddDI = propAssocAdd DI.pec2ToIntermediate toPEC2DI (\fm rs ca x y -> DI.pec2Add fm (punsafeCoerce rs) ca x y)
+
+-- Helpers
+
+propInvAdd ::
+    forall (a :: S -> Type).
+    (forall (s :: S). Term s PEC2Point -> Term s a) ->
+    (forall (s :: S). Term s PD2Element -> Term s a -> Term s PEC2Point) ->
+    (forall (s :: S). Term s PPositive -> Term s PPositive -> Term s PD2Element -> Term s a -> Term s a -> Term s a) ->
+    (forall (s :: S). Term s a) ->
+    Property
+propInvAdd toIntermediate fromIntermediate minus zero = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $
+    \(GenCurvePoints constantA _ points) ->
+        let points' = Vector.map (bimap toD2 toD2) points
+            (xR, xI) = Vector.index' points' (Proxy @0)
+            constantA' = toD2 constantA
+            lhs = plift (precompileTerm (plam goLHS) # pconstant xR # pconstant xI # pconstant constantA')
+            rhs = plift (precompileTerm (plam goRHS) # pconstant constantA')
+         in counterexample ("x #- x: " <> show lhs) $
+                lhs === rhs
+  where
+    goLHS ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PEC2Point
+    goLHS xR xI constantA = plet (toIntermediate $ pec2FromElems xR xI) $ \x ->
+        fromIntermediate constantA (minus pfieldMod prSquared constantA x x)
+    goRHS ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PEC2Point
+    goRHS constantA = fromIntermediate constantA zero
+
+propZeroAdd ::
+    forall (a :: S -> Type).
+    (forall (s :: S). Term s PEC2Point -> Term s a) ->
+    (forall (s :: S). Term s PD2Element -> Term s a -> Term s PEC2Point) ->
+    (forall (s :: S). Term s PPositive -> Term s PPositive -> Term s PD2Element -> Term s a -> Term s a -> Term s a) ->
+    (forall (s :: S). Term s a) ->
+    Property
+propZeroAdd toIntermediate fromIntermediate plus zero = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $
+    \(GenCurvePoints constantA _ points) ->
+        let points' = Vector.map (bimap toD2 toD2) points
+            (xR, xI) = Vector.index' points' (Proxy @0)
+            constantA' = toD2 constantA
+            lhs = plift (precompileTerm (plam goLHS) # pconstant xR # pconstant xI # pconstant constantA')
+            rhs = plift (precompileTerm (plam goRHS) # pconstant xR # pconstant xI # pconstant constantA')
+         in counterexample ("x #+ pzero: " <> show lhs)
+                . counterexample ("pzero #+ x: " <> show rhs)
+                . counterexample ("x: " <> show (Vector.index' points' (Proxy @0)))
+                $ lhs === rhs
+  where
+    goLHS ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PEC2Point
+    goLHS xR xI constantA = plet (toIntermediate $ pec2FromElems xR xI) $ \x ->
+        fromIntermediate constantA (plus pfieldMod prSquared constantA x zero)
+    goRHS ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PEC2Point
+    goRHS xR xI constantA = plet (toIntermediate $ pec2FromElems xR xI) $ \x ->
+        fromIntermediate constantA (plus pfieldMod prSquared constantA zero x)
+
+propDoubleAdd ::
+    forall (a :: S -> Type).
+    (forall (s :: S). Term s PEC2Point -> Term s a) ->
+    (forall (s :: S). Term s PD2Element -> Term s a -> Term s PEC2Point) ->
+    (forall (s :: S). Term s PPositive -> Term s PPositive -> Term s PD2Element -> Term s a -> Term s a -> Term s a) ->
+    (forall (s :: S). Term s PPositive -> Term s PPositive -> Term s PD2Element -> Term s a -> Term s a) ->
+    Property
+propDoubleAdd toIntermediate fromIntermediate plus double = forAllShrinkShow (arbitrary @(GenCurvePoints 1)) shrink show $
+    \(GenCurvePoints constantA _ points) ->
+        let points' = Vector.map (bimap toD2 toD2) points
+            (xR, xI) = Vector.index' points' (Proxy @0)
+            constantA' = toD2 constantA
+            lhs = plift (precompileTerm (plam goLHS) # pconstant xR # pconstant xI # pconstant constantA')
+            rhs = plift (precompileTerm (plam goRHS) # pconstant xR # pconstant xI # pconstant constantA')
+         in counterexample ("pecDouble x: " <> show lhs)
+                . counterexample ("x #+ x: " <> show rhs)
+                $ lhs === rhs
+  where
+    goLHS ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PEC2Point
+    goLHS xR xI constantA = plet (toIntermediate $ pec2FromElems xR xI) $ \x ->
+        fromIntermediate constantA (double pfieldMod prSquared constantA x)
+    goRHS ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PEC2Point
+    goRHS xR xI constantA = plet (toIntermediate $ pec2FromElems xR xI) $ \x ->
+        fromIntermediate constantA (plus pfieldMod prSquared constantA x x)
+
+propAssocAdd ::
+    forall (a :: S -> Type).
+    (forall (s :: S). Term s PEC2Point -> Term s a) ->
+    (forall (s :: S). Term s PD2Element -> Term s a -> Term s PEC2Point) ->
+    (forall (s :: S). Term s PPositive -> Term s PPositive -> Term s PD2Element -> Term s a -> Term s a -> Term s a) ->
+    Property
+propAssocAdd toIntermediate fromIntermediate plus = forAllShrinkShow (arbitrary @(GenCurvePoints 3)) shrink show $
+    \(GenCurvePoints constantA _ points) ->
+        let points' = Vector.map (bimap toD2 toD2) points
+            (xR, xI) = Vector.index' points' (Proxy @0)
+            (yR, yI) = Vector.index' points' (Proxy @1)
+            (zR, zI) = Vector.index' points' (Proxy @2)
+            constantA' = toD2 constantA
+            lhs =
+                plift
+                    ( precompileTerm (plam goLHS)
+                        # pconstant xR
+                        # pconstant xI
+                        # pconstant yR
+                        # pconstant yI
+                        # pconstant zR
+                        # pconstant zI
+                        # pconstant constantA'
+                    )
+            rhs =
+                plift
+                    ( precompileTerm (plam goRHS)
+                        # pconstant xR
+                        # pconstant xI
+                        # pconstant yR
+                        # pconstant yI
+                        # pconstant zR
+                        # pconstant zI
+                        # pconstant constantA'
+                    )
+         in counterexample ("x + (y + z): " <> show lhs)
+                . counterexample ("(x + y) + z: " <> show rhs)
+                $ lhs === rhs
+  where
+    goLHS ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PEC2Point
+    goLHS xR xI yR yI zR zI constantA = plet (toIntermediate $ pec2FromElems xR xI) $ \x ->
+        plet (toIntermediate $ pec2FromElems yR yI) $ \y ->
+            plet (toIntermediate $ pec2FromElems zR zI) $ \z ->
+                fromIntermediate constantA (plus pfieldMod prSquared constantA x (plus pfieldMod prSquared constantA y z))
+    goRHS ::
+        forall (s :: S).
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PD2Element ->
+        Term s PEC2Point
+    goRHS xR xI yR yI zR zI constantA = plet (toIntermediate $ pec2FromElems xR xI) $ \x ->
+        plet (toIntermediate $ pec2FromElems yR yI) $ \y ->
+            plet (toIntermediate $ pec2FromElems zR zI) $ \z ->
+                fromIntermediate constantA (plus pfieldMod prSquared constantA (plus pfieldMod prSquared constantA x y) z)
+
+pec2ZeroDD :: forall (s :: S). Term s DD.PEC2Intermediate
+pec2ZeroDD = pcon DD.PEC2InfinityI
+
+pec2ZeroDI :: forall (s :: S). Term s DI.PEC2Intermediate
+pec2ZeroDI = pcon DI.PEC2InfinityI
+
+toD2 :: GF11Elem2 -> D2Element
+toD2 (GF11Elem2 r i) = mkD2Element (fromIntegral r) (fromIntegral i) 11
+
+toPEC2II :: forall (s :: S). Term s PD2Element -> Term s II.PEC2Intermediate -> Term s PEC2Point
+toPEC2II = II.pec2FromIntermediate pfieldMod prSquared
+
+toPEC2ID :: forall (s :: S). Term s PD2Element -> Term s ID.PEC2Intermediate -> Term s PEC2Point
+toPEC2ID = ID.pec2FromIntermediate pfieldMod prSquared
+
+toPEC2DD :: forall (s :: S). Term s PD2Element -> Term s DD.PEC2Intermediate -> Term s PEC2Point
+toPEC2DD _ = DD.pec2FromIntermediate pfieldMod
+
+toPEC2DI :: forall (s :: S). Term s PD2Element -> Term s DI.PEC2Intermediate -> Term s PEC2Point
+toPEC2DI _ = DI.pec2FromIntermediate pfieldMod (punsafeCoerce prSquared)
+
+pfieldMod :: forall (s :: S). Term s PPositive
+pfieldMod = punsafeCoerce @_ @PInteger 11
+
+prSquared :: forall (s :: S). Term s PPositive
+prSquared = punsafeCoerce @_ @PInteger 2
+
+-- BLS12-381 2nd degree extension order
+bls2Order :: Natural
+bls2Order = 16019282247729705411943748644318972617695120099330552659862384536985976748491357143400656079302193429974954385540174732940659106207100323726025938325193045129788127168347624263893040187112659960846674086295148469572963088890738917
+
+pblsOrder :: forall (s :: S). Term s PPositive
+pblsOrder = punsafeCoerce . pconstant @PNatural $ bls2Order
+
+validX1 :: Natural
+validX1 = 0x24aa2b2_f08f0a91_26080527_2dc51051_c6e47ad4_fa403b02_b4510b64_7ae3d177_0bac0326_a805bbef_d48056c8_c121bdb8
+
+validX2 :: Natural
+validX2 = 0xce5d527_727d6e11_8cc9cdc6_da2e351a_adfd9baa_8cbdd3a7_6d429a69_5160d12c_923ac9cc_3baca289_e1935486_08b82801
+
+validY1 :: Natural
+validY1 = 0x13e02b60_52719f60_7dacd3a0_88274f65_596bd0d0_9920b61a_b5da61bb_dc7f5049_334cf112_13945d57_e5ac7d05_5d042b7e
+
+validY2 :: Natural
+validY2 = 0x606c4a0_2ea734cc_32acd2b0_2bc28b99_cb3e287e_85a763af_267492ab_572e99ab_3f370d27_5cec1da1_aaa9075f_f05f79be
+
+validRSquared :: forall (s :: S). Term s PPositive
+validRSquared = evalTerm' NoTracing (punsafeCoerce $ pmod # (-1) # pupcast (pconstant @PNatural bls2Order))
+
+blsC1 :: forall (s :: S). Term s PEC2Point
+blsC1 = evalTerm' NoTracing (pec2FromElems (pconstant . mkBLS validX1 $ validY1) (pconstant . mkBLS validX2 $ validY2))
+
+blsC1II :: forall (s :: S). Term s II.PEC2Intermediate
+blsC1II = evalTerm' NoTracing (II.pec2ToIntermediate blsC1)
+
+blsC1ID :: forall (s :: S). Term s ID.PEC2Intermediate
+blsC1ID = evalTerm' NoTracing (ID.pec2ToIntermediate blsC1)
+
+blsC1DD :: forall (s :: S). Term s DD.PEC2Intermediate
+blsC1DD = evalTerm' NoTracing (DD.pec2ToIntermediate blsC1)
+
+blsC1DI :: forall (s :: S). Term s DI.PEC2Intermediate
+blsC1DI = evalTerm' NoTracing (DI.pec2ToIntermediate blsC1)
+
+blsC2DD :: forall (s :: S). Term s DD.PEC2Intermediate
+blsC2DD = evalTerm' NoTracing (DD.pec2ToIntermediate . DD.pec2FromIntermediate pblsOrder $ DD.pec2Scale pblsOrder validRSquared validCurveA blsC1DD 3)
+
+blsC2II :: forall (s :: S). Term s II.PEC2Intermediate
+blsC2II = evalTerm' NoTracing (II.pec2ToIntermediate . II.pec2FromIntermediate pblsOrder validRSquared validCurveA $ pscaleInteger blsC1II 3)
+
+blsC2ID :: forall (s :: S). Term s ID.PEC2Intermediate
+blsC2ID = evalTerm' NoTracing (ID.pec2ToIntermediate . ID.pec2FromIntermediate pblsOrder validRSquared validCurveA $ pscaleInteger blsC1ID 3)
+
+blsC2DI :: forall (s :: S). Term s DI.PEC2Intermediate
+blsC2DI =
+    evalTerm'
+        NoTracing
+        ( DI.pec2ToIntermediate
+            . DI.pec2FromIntermediate pblsOrder (punsafeCoerce validRSquared)
+            . DI.pec2Scale pblsOrder (punsafeCoerce validRSquared) validCurveA blsC1DI
+            $ 3
+        )
+
+mkBLS :: Natural -> Natural -> D2Element
+mkBLS x y = mkD2Element x y bls2Order
+
+validCurveA :: forall (s :: S). Term s PD2Element
+validCurveA = pd2Zero
+
+validCurveB :: forall (s :: S). Term s PD2Element
+validCurveB = evalTerm' NoTracing (pconstant . mkBLS 4 $ 4)
+
+onCurveA :: forall (s :: S). Term s PD2Element
+onCurveA = pconstant . mkD2Element 9 1 $ 11
+
+onCurveB :: forall (s :: S). Term s PD2Element
+onCurveB = pconstant . mkD2Element 4 8 $ 11
+
+onCurveOrder :: forall (s :: S). Term s PPositive
+onCurveOrder = punsafeCoerce (pconstant @PInteger 11)
+
+onCurveIrred :: forall (s :: S). Term s PPositive
+onCurveIrred = punsafeCoerce (pconstant @PInteger 2)

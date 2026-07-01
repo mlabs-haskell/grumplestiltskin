@@ -6,7 +6,7 @@ is @y^2 = x^3 + ax + b (mod r)@, where @r@ is the field order.
 
 @since 1.1.0
 -}
-module Grumplestiltskin.EllipticCurve (
+module Grumplestiltskin.Degree1.EllipticCurve (
     -- * Types
 
     -- ** @Data@ encoded
@@ -39,7 +39,14 @@ module Grumplestiltskin.EllipticCurve (
 import Data.Kind (Type)
 import GHC.Generics (Generic)
 import Generics.SOP qualified as SOP
-import Grumplestiltskin.Galois (PGFElement, PGFIntermediate, pgfFromElem, pgfRecip, pgfToElem, pgfZero)
+import Grumplestiltskin.Degree1.Galois (
+    PGFElement,
+    PGFIntermediate,
+    pgfFromElem,
+    pgfRecip,
+    pgfToElem,
+    pgfZero,
+ )
 import Plutarch.Internal.Case (punsafeCase)
 import Plutarch.Internal.PlutusType (PlutusType, pmatch)
 import Plutarch.Internal.Term (S, Term, plet, punsafeCoerce)

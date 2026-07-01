@@ -64,8 +64,16 @@ common test-lang
 library
   import:          lang
   exposed-modules:
-    Grumplestiltskin.EllipticCurve
-    Grumplestiltskin.Galois
+    Grumplestiltskin.Degree1.EllipticCurve
+    Grumplestiltskin.Degree1.Galois
+    Grumplestiltskin.Degree2.AffinePoint
+    Grumplestiltskin.Degree2.Element
+    Grumplestiltskin.Degree2.EllipticCurveDD
+    Grumplestiltskin.Degree2.EllipticCurveDI
+    Grumplestiltskin.Degree2.EllipticCurveID
+    Grumplestiltskin.Degree2.EllipticCurveII
+    Grumplestiltskin.Degree2.Galois
+    Grumplestiltskin.Degree2.GaloisDirect
     Grumplestiltskin.Verify
 
   build-depends:
@@ -93,3 +101,27 @@ test-suite ec
     , vector-sized
 
   hs-source-dirs: test/ec
+
+test-suite extension
+  import:         test-lang
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  other-modules:  GenD2
+  hs-source-dirs: test/extension
+  build-depends:
+    , containers
+    , plutus-core
+    , vector-sized
+
+test-suite extension-ec
+  import:         test-lang
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  other-modules:  GenCurve
+  hs-source-dirs: test/extension-ec
+  build-depends:
+    , hashable
+    , plutus-core
+    , semirings
+    , unordered-containers
+    , vector-sized
